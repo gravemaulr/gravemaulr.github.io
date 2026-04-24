@@ -7,6 +7,7 @@
     --text: #e8edf5;
     --text-muted: #9aa4bf;
     --accent: #6c5ce7;
+    --accent-hover: #5b4bc6;
     --accent-glow: rgba(108,92,231,0.3);
     --gradient: linear-gradient(135deg, #6c5ce7, #a29bfe);
     --radius: 20px;
@@ -29,6 +30,21 @@ body {
     color: var(--text);
     line-height: 1.7;
     overflow-x: hidden;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 10% 20%, rgba(108,92,231,0.05) 0%, transparent 50%),
+        radial-gradient(circle at 90% 80%, rgba(162,155,254,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: -1;
 }
 
 .container {
@@ -37,7 +53,6 @@ body {
     padding: 0 24px;
 }
 
-/* Hero */
 .hero {
     min-height: 100vh;
     display: flex;
@@ -52,6 +67,22 @@ body {
 
 .hero-content {
     animation: fadeUp 1s ease forwards;
+}
+
+.hero-avatar {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    margin-bottom: 24px;
+    border: 4px solid var(--accent);
+    box-shadow: 0 0 40px var(--accent-glow);
+    object-fit: cover;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
 }
 
 .hero-title {
@@ -125,7 +156,6 @@ body {
     opacity: 0.6;
 }
 
-/* Sections */
 .section {
     padding: 80px 0;
 }
@@ -143,8 +173,9 @@ body {
 }
 
 .card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-6px);
     box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+    border-color: rgba(108,92,231,0.2);
 }
 
 .card h2 {
@@ -168,7 +199,6 @@ body {
     font-weight: 600;
 }
 
-/* Social grid */
 .social-grid {
     display: flex;
     flex-wrap: wrap;
@@ -188,11 +218,11 @@ body {
 }
 
 .social-grid a:hover {
-    background: rgba(108,92,231,0.2);
-    transform: translateY(-2px);
+    background: rgba(108,92,231,0.25);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 4px 12px rgba(108,92,231,0.3);
 }
 
-/* Interests */
 .interests-list {
     list-style: none;
     margin: 0 0 28px 0;
@@ -220,7 +250,6 @@ body {
     font-size: 1.05rem;
 }
 
-/* Stack */
 .stack-grid {
     display: flex;
     flex-wrap: wrap;
@@ -240,11 +269,11 @@ body {
 }
 
 .stack-grid span:hover {
-    background: rgba(108,92,231,0.25);
-    transform: scale(1.04);
+    background: rgba(108,92,231,0.3);
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(108,92,231,0.4);
 }
 
-/* Server info */
 .server-info p {
     font-size: 1.1rem;
     margin-bottom: 10px;
@@ -261,7 +290,6 @@ body {
     border-bottom-color: var(--accent);
 }
 
-/* Rebrand */
 .changes p {
     padding: 8px 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -285,7 +313,6 @@ code {
     color: var(--text);
 }
 
-/* Footer */
 .footer {
     text-align: center;
     padding: 40px 0;
@@ -294,7 +321,6 @@ code {
     border-top: 1px solid rgba(255,255,255,0.04);
 }
 
-/* Animations */
 @keyframes fadeUp {
     from {
         opacity: 0;
@@ -311,7 +337,6 @@ code {
     50% { transform: translateX(-50%) translateY(12px); }
 }
 
-/* Reveal on scroll - via JS */
 .reveal {
     opacity: 0;
     transform: translateY(40px);
@@ -323,7 +348,6 @@ code {
     transform: translateY(0);
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     .card {
         padding: 32px 24px;
@@ -337,5 +361,12 @@ code {
     }
     .stack-grid {
         justify-content: center;
+    }
+    .hero-avatar {
+        width: 120px;
+        height: 120px;
+    }
+    .hero-title {
+        font-size: 2.5rem;
     }
 }
