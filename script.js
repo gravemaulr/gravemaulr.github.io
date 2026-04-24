@@ -47,3 +47,39 @@ document.querySelectorAll('.btn, .social-grid a, .stack-grid span').forEach(el =
         this.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
     });
 });
+
+const cards = document.querySelectorAll('.card');
+cards.forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        
+        const rotateX = (y - centerY) / 20;
+        const rotateY = (centerX - x) / 20;
+        
+        card.style.transform = `translateY(-6px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    });
+    
+    card.addEventListener('mouseleave', () => {
+        card.style.transform = 'translateY(0) rotateX(0) rotateY(0)';
+    });
+});
+
+function createFloatingShapes() {
+    const hero = document.querySelector('.hero');
+    for (let i = 0; i < 5; i++) {
+        const shape = document.createElement('div');
+        shape.className = 'floating-shape';
+        shape.style.left = Math.random() * 100 + '%';
+        shape.style.top = Math.random() * 100 + '%';
+        shape.style.animationDelay = Math.random() * 5 + 's';
+        shape.style.animationDuration = (15 + Math.random() * 10) + 's';
+        hero.appendChild(shape);
+    }
+}
+
+createFloatingShapes();
