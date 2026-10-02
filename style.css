@@ -151,56 +151,7 @@ body.fine .cursor, body.fine .cursor-ring { display: block; }
     border-color: transparent;
 }
 
-.gate {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: grid;
-    place-items: center;
-    background: var(--bg);
-    cursor: pointer;
-    transition: opacity .8s var(--ease), visibility .8s;
-}
-
-.gate.out {
-    opacity: 0;
-    visibility: hidden;
-}
-
-.gate-inner { text-align: center; }
-
-.gate-logo {
-    font-family: var(--mono);
-    font-weight: 700;
-    font-size: clamp(28px, 6vw, 56px);
-    letter-spacing: -.04em;
-    animation: flicker 3s infinite;
-}
-
-.gate-hint {
-    margin-top: 18px;
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .3em;
-    animation: blink 1.6s infinite;
-}
-
-.gate-sub {
-    margin-top: 8px;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: #55555f;
-}
-
 @keyframes blink { 50% { opacity: .25; } }
-
-@keyframes flicker {
-    0%, 97%, 100% { opacity: 1; }
-    98% { opacity: .4; }
-    99% { opacity: .9; }
-}
 
 .nav {
     position: fixed;
@@ -1001,13 +952,10 @@ main {
 
 .footer .wrap {
     display: flex;
-    justify-content: space-between;
-    gap: 20px;
-    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .footer b { color: var(--text); font-weight: 500; }
-.footer .hint { opacity: .5; }
 
 .toast {
     position: fixed;
@@ -1056,7 +1004,6 @@ body.rave .hero, body.rave main, body.rave .marquee, body.rave .footer {
 @media (max-width: 480px) {
     .facts { grid-template-columns: 1fr 1fr; }
     .scanlines { display: none; }
-    .footer .wrap { flex-direction: column; gap: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

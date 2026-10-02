@@ -128,20 +128,15 @@
         return { set, toggle: () => set(!on) };
     })();
 
-    const gate = $('#gate');
-    let entered = false, enteredAt = 0;
-    const enter = () => {
-        if (entered) return;
-        entered = true;
-        enteredAt = performance.now();
-        gate.classList.add('out');
-        body.classList.add('in');
+    body.classList.add('in');
+    let armed = false;
+    const arm = e => {
+        if (armed) return;
+        armed = true;
+        if (e.target.closest('#sound')) return;
         if (localStorage.getItem('snd') !== '0') audio.set(true);
-        setTimeout(() => gate.remove(), 900);
     };
-    gate.addEventListener('click', enter);
-    window.addEventListener('keydown', enter, { once: true });
-    window.addEventListener('touchend', enter, { once: true });
+    window.addEventListener('pointerdown', arm, { once: true });
 
     if (fine) {
         const dot = $('#cursor');
@@ -156,7 +151,7 @@
         window.addEventListener('mousedown', () => ring.classList.add('down'));
         window.addEventListener('mouseup', () => ring.classList.remove('down'));
         document.addEventListener('mouseover', e => {
-            const link = e.target.closest('a,button,.chip,.project,.gate');
+            const link = e.target.closest('a,button,.chip,.project');
             ring.classList.toggle('hover', !!link);
             ring.classList.toggle('text', !link && !!e.target.closest('p,.term-body,.h2,.title'));
         });
@@ -395,7 +390,12 @@
     let ki = 0;
     window.addEventListener('keydown', e => {
         const key = e.key.toLowerCase();
-        if ((key === 'm' || key === 'ь') && !e.repeat && entered && performance.now() - enteredAt > 500) audio.toggle();
+        const isM = key === 'm' || key === 'ь';
+        if (!armed) {
+            armed = true;
+            if (!isM && localStorage.getItem('snd') !== '0') audio.set(true);
+        }
+        if (isM && !e.repeat) audio.toggle();
         ki = key === konami[ki].toLowerCase() ? ki + 1 : 0;
         if (ki === konami.length) {
             ki = 0;
