@@ -114,9 +114,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     z-index: 1;
     pointer-events: none;
     overflow: hidden;
-    perspective: 1100px;
+    perspective: 1400px;
     perspective-origin: 50% 50%;
-    opacity: .8;
+    opacity: .7;
     transition: opacity 1s var(--ease);
 }
 
@@ -124,25 +124,20 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 .ly {
     position: absolute;
+    max-width: 90vw;
     transform-style: preserve-3d;
     will-change: transform;
 }
 
-.ly-a { transform-style: preserve-3d; }
-
 .ly-b {
-    display: block;
-    max-width: 62vw;
-    text-align: center;
+    display: inline-block;
     font-family: var(--display);
     font-weight: 900;
-    line-height: 1.05;
+    line-height: 1.02;
     letter-spacing: -.02em;
     text-transform: lowercase;
-    color: rgba(255,255,255,.9);
-    transform-style: preserve-3d;
-    transform: scale(calc(1 + var(--beat) * .07));
-    text-shadow: 0 0 calc(var(--beat) * 26px) rgba(var(--lc), .7);
+    color: rgba(255,255,255,.88);
+    text-shadow: 0 0 calc(var(--beat) * 22px) rgba(var(--lc), .6);
 }
 
 .ly-b.outline {
@@ -155,15 +150,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ly-w {
     display: inline-block;
     white-space: nowrap;
-    margin: 0 .14em;
-    transform-style: preserve-3d;
+    margin-right: .22em;
 }
+
+.ly-w:last-child { margin-right: 0; }
 
 .ly-w.hot { color: rgb(var(--lc)); -webkit-text-stroke: 0; }
 
 .ly-c {
     display: inline-block;
-    transform-style: preserve-3d;
     backface-visibility: hidden;
 }
 
@@ -911,7 +906,6 @@ body.rave .deck, body.rave .lyrics { animation: hue 1.5s linear infinite; }
     .project { min-height: 150px; }
     .contact { grid-template-columns: 1fr auto; gap: 4px 14px; }
     .contact-k { grid-column: 1 / -1; }
-    .ly-b { max-width: 84vw; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -123,10 +123,10 @@
 
     const lyrics = (() => {
         const COLORS = ['200,255,61', '88,240,255', '255,61,127', '255,255,255'];
-        const ENTER = ['rise', 'flip', 'swing', 'zoom', 'type', 'scatter', 'slice', 'drop', 'wave'];
-        const EXIT = ['deep', 'up', 'scatter', 'dissolve', 'blur'];
+        const ENTER = ['up', 'side', 'flip', 'blur', 'letters'];
         const syncMode = new URLSearchParams(location.search).has('sync');
-        let lines = [], idx = 0, lastT = 0, recentEnter = [], active = [];
+        let lines = [], idx = 0, lastT = 0, active = [], row = 0, lastEnter = '';
+        const rowsCount = () => innerWidth < 860 ? 5 : 6;
 
         const parse = text => {
             const out = [];
@@ -199,25 +199,9 @@
             if (syncMode) initSync(res.lines.map(l => l.text).filter(Boolean));
         };
 
-        const place = () => {
-            let best = null, bestScore = -1;
-            const mob = innerWidth < 860;
-            for (let k = 0; k < 12; k++) {
-                const c = { x: rand(.14, .86), y: rand(mob ? .2 : .14, .88) };
-                let d = 1;
-                active.forEach(a => { d = Math.min(d, Math.hypot((a.x - c.x) * 1.4, a.y - c.y)); });
-                const centre = Math.hypot(c.x - .5, (c.y - .5) * 1.2);
-                const score = d + Math.min(centre, .25) * .5;
-                if (score > bestScore) { bestScore = score; best = c; }
-            }
-            return best;
-        };
-
         const build = text => {
             const box = document.createElement('div');
             box.className = 'ly';
-            const a = document.createElement('div');
-            a.className = 'ly-a';
             const b = document.createElement('div');
             b.className = 'ly-b';
             const words = [], chars = [];
@@ -234,146 +218,91 @@
                 b.appendChild(ws);
                 words.push(ws);
             });
-            a.appendChild(b);
-            box.appendChild(a);
-            return { box, a, b, words, chars };
+            box.appendChild(b);
+            return { box, b, words, chars };
         };
 
-        const stagger = (units, total, frames, opts) => {
-            const step = units.length > 1 ? total / (units.length - 1) : 0;
-            units.forEach((u, k) => {
-                const f = typeof frames === 'function' ? frames(u, k) : frames;
-                u.animate(f, Object.assign({ fill: 'backwards', easing: 'cubic-bezier(.22,1,.36,1)' }, opts, { delay: k * step + (opts.delay || 0) }));
-            });
-        };
+        const ease = 'cubic-bezier(.22,1,.36,1)';
 
-        const enter = (type, n, win) => {
-            const { a, words, chars } = n;
-            const ease = 'cubic-bezier(.22,1,.36,1)';
-            switch (type) {
-                case 'rise':
-                    stagger(words, win, [
-                        { opacity: 0, transform: 'translate3d(0,70px,-260px) rotateX(-75deg)', filter: 'blur(8px)' },
-                        { opacity: 1, transform: 'none', filter: 'blur(0)' }
-                    ], { duration: 900 });
-                    break;
-                case 'flip':
-                    stagger(chars, win, [
-                        { opacity: 0, transform: 'translateY(.35em) rotateX(95deg)' },
-                        { opacity: 1, transform: 'none' }
-                    ], { duration: 650 });
-                    break;
-                case 'swing':
-                    a.animate([
-                        { opacity: 0, transform: `rotateY(${pick([-1, 1]) * 100}deg) translateZ(-200px)` },
-                        { opacity: 1, transform: 'none' }
-                    ], { duration: 1200, easing: 'cubic-bezier(.34,1.3,.64,1)', fill: 'backwards' });
-                    break;
-                case 'zoom':
-                    a.animate([
-                        { opacity: 0, transform: 'translateZ(-1600px)', filter: 'blur(16px)' },
-                        { opacity: 1, transform: 'none', filter: 'blur(0)' }
-                    ], { duration: 1300, easing: ease, fill: 'backwards' });
-                    break;
-                case 'type':
-                    stagger(chars, win * 1.2, [
-                        { opacity: 0, transform: 'scale(1.6)', textShadow: '0 0 24px #fff' },
-                        { opacity: 1, transform: 'none', textShadow: '0 0 0 transparent' }
-                    ], { duration: 260, easing: 'steps(3,end)' });
-                    break;
-                case 'scatter':
-                    stagger(chars, win * .5, () => [
-                        { opacity: 0, transform: `translate3d(${rand(-260, 260)}px,${rand(-200, 200)}px,${rand(-600, 300)}px) rotate(${rand(-180, 180)}deg)` },
-                        { opacity: 1, transform: 'none' }
-                    ], { duration: 1100 });
-                    break;
-                case 'slice':
-                    a.animate([
-                        { clipPath: 'inset(0 100% 0 0)', transform: 'skewX(-25deg) translateX(-40px)' },
-                        { clipPath: 'inset(0 0% 0 0)', transform: 'none' }
-                    ], { duration: 900, easing: ease, fill: 'backwards' });
-                    break;
-                case 'drop':
-                    stagger(words, win, () => [
-                        { opacity: 0, transform: `translateY(-140px) rotateZ(${rand(-30, 30)}deg)` },
-                        { opacity: 1, transform: 'none' }
-                    ], { duration: 800, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-                    break;
-                default:
-                    stagger(chars, win * .8, [
-                        { opacity: 0, transform: 'translateY(1em) rotateZ(12deg)' },
-                        { opacity: 1, transform: 'none' }
-                    ], { duration: 700 });
-            }
+        const enter = (type, n, dir) => {
+            const { b, chars, words } = n;
+            const each = (units, total, frames, dur) => {
+                const step = units.length > 1 ? total / (units.length - 1) : 0;
+                units.forEach((u, k) => u.animate(frames, { duration: dur, delay: k * step, easing: ease, fill: 'backwards' }));
+            };
+            if (type === 'up') each(words, 360, [{ opacity: 0, transform: 'translateY(.6em)' }, { opacity: 1, transform: 'none' }], 700);
+            else if (type === 'side') b.animate([{ opacity: 0, transform: `translateX(${dir * -8}vw)`, filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 900, easing: ease, fill: 'backwards' });
+            else if (type === 'flip') each(chars, 420, [{ opacity: 0, transform: 'rotateX(80deg)' }, { opacity: 1, transform: 'none' }], 520);
+            else if (type === 'blur') b.animate([{ opacity: 0, filter: 'blur(14px)', transform: 'scale(.94)' }, { opacity: 1, filter: 'blur(0)', transform: 'none' }], { duration: 900, easing: ease, fill: 'backwards' });
+            else each(chars, 500, [{ opacity: 0 }, { opacity: 1 }], 160);
         };
 
         const leave = (item, fast) => {
             if (item.gone) return;
             item.gone = true;
+            clearTimeout(item.timer);
             active = active.filter(x => x !== item);
-            const { a, chars, box } = item.node;
-            const type = fast ? 'blur' : pick(EXIT);
-            const dur = fast ? 500 : 1100;
-            let anim;
-            if (type === 'scatter' || type === 'dissolve') {
-                chars.forEach(c => {
-                    c.animate(type === 'scatter'
-                        ? [{ opacity: 1 }, { opacity: 0, transform: `translate3d(${rand(-200, 200)}px,${rand(-160, 160)}px,${rand(-500, 200)}px) rotate(${rand(-140, 140)}deg)` }]
-                        : [{ opacity: 1 }, { opacity: 0, filter: 'blur(6px)' }],
-                        { duration: dur, delay: rand(0, 400), easing: 'cubic-bezier(.55,0,.8,.3)', fill: 'forwards' });
-                });
-                anim = a.animate([{ opacity: 1 }, { opacity: 1 }], { duration: dur + 420, fill: 'forwards' });
-            } else {
-                const to = {
-                    deep: { opacity: 0, transform: 'translateZ(-800px)', filter: 'blur(10px)' },
-                    up: { opacity: 0, transform: 'translateY(-90px) rotateX(55deg)', filter: 'blur(4px)' },
-                    blur: { opacity: 0, filter: 'blur(18px)', transform: 'scale(1.15)' }
-                }[type];
-                anim = a.animate([{ opacity: 1, transform: 'none', filter: 'blur(0)' }, to], { duration: dur, easing: 'cubic-bezier(.55,0,.8,.3)', fill: 'forwards' });
+            const anim = item.node.b.animate([
+                { opacity: 1, filter: 'blur(0)', transform: 'none' },
+                { opacity: 0, filter: 'blur(8px)', transform: 'translateY(-.3em)' }
+            ], { duration: fast ? 400 : 900, easing: 'ease-in', fill: 'forwards' });
+            anim.onfinish = () => item.node.box.remove();
+        };
+
+        const fit = (n, maxW, maxH) => {
+            let size = parseFloat(n.b.style.fontSize);
+            for (let k = 0; k < 8; k++) {
+                const r = n.b.getBoundingClientRect();
+                if (r.width <= maxW && r.height <= maxH) break;
+                size *= Math.min(maxW / r.width, maxH / r.height, .92);
+                n.b.style.fontSize = size + 'px';
             }
-            anim.onfinish = () => box.remove();
         };
 
         const spawn = (line, life) => {
             if (!line.text) return;
-            while (active.length >= 5) leave(active[0], true);
+            const N = rowsCount();
+            const slot = row % N;
+            row++;
+            active.filter(x => x.slot === slot).forEach(x => leave(x, true));
             const mob = innerWidth < 860;
-            const pos = place();
+            const top = mob ? 90 : 80, bottom = mob ? 90 : 70;
+            const bandH = (innerHeight - top - bottom) / N;
             const n = build(line.text);
-            const len = line.text.length;
-            const size = clamp(118 - len * 1.7, 26, 108) * rand(.85, 1.15) * (mob ? .5 : 1);
+            const align = slot % 2 ? 'right' : 'left';
+            const dir = align === 'left' ? 1 : -1;
+            n.box.style.top = top + bandH * (slot + .5) + 'px';
+            n.box.style[align] = (mob ? 4 : rand(5, 12)) + 'vw';
+            n.box.style.textAlign = align;
+            n.box.style.transformOrigin = align + ' center';
             const color = pick(COLORS);
-            const style = Math.random();
             n.b.style.setProperty('--lc', color);
-            n.b.style.fontSize = size + 'px';
-            if (style > .62) n.b.classList.add('outline');
-            else if (style > .5) n.b.classList.add('thin');
-            if (Math.random() < .75 && n.words.length > 1) pick(n.words).classList.add('hot');
-            n.box.style.left = pos.x * 100 + '%';
-            n.box.style.top = pos.y * 100 + '%';
-            const z = rand(-520, 60);
-            const ry = (pos.x < .5 ? 1 : -1) * rand(6, 38);
-            const rx = rand(-16, 16);
-            const rz = rand(-7, 7);
-            const T = (dx, dy, dz, dry) => `translate(-50%,-50%) translate3d(${dx}px,${dy}px,${z + dz}px) rotateX(${rx}deg) rotateY(${ry + dry}deg) rotateZ(${rz}deg)`;
-            n.box.style.transform = T(0, 0, 0, 0);
+            n.b.style.fontSize = clamp(bandH * .8, 22, mob ? 44 : 96) + 'px';
+            const st = Math.random();
+            if (st > .7) n.b.classList.add('outline');
+            else if (st > .58) n.b.classList.add('thin');
+            if (n.words.length > 1 && Math.random() < .7) pick(n.words).classList.add('hot');
+            const ry = dir * rand(8, 18);
+            const rx = rand(-6, 6);
+            n.box.style.transform = `translateY(-50%) rotateY(${ry}deg) rotateX(${rx}deg)`;
             lyricsLayer.appendChild(n.box);
+            fit(n, innerWidth * (mob ? .9 : .78), bandH * 1.6);
             if (!reduced) {
                 n.box.animate([
-                    { transform: T(0, 0, 0, 0) },
-                    { transform: T(rand(-40, 40), rand(-30, 30), rand(90, 240), rand(-12, 12)) }
-                ], { duration: life * 1000 + 1600, easing: 'linear', fill: 'forwards' });
+                    { transform: `translateY(-50%) translateX(0) rotateY(${ry}deg) rotateX(${rx}deg)` },
+                    { transform: `translateY(-50%) translateX(${dir * 3}vw) rotateY(${ry * .6}deg) rotateX(${rx}deg)` }
+                ], { duration: life * 1000 + 900, easing: 'linear', fill: 'forwards' });
                 let type;
-                do { type = pick(ENTER); } while (recentEnter.includes(type));
-                recentEnter = [type].concat(recentEnter).slice(0, 3);
-                enter(type, n, clamp(life * 380, 300, 1500));
+                do { type = pick(ENTER); } while (type === lastEnter);
+                lastEnter = type;
+                enter(type, n, dir);
             }
-            const item = { node: n, x: pos.x, y: pos.y };
+            const item = { node: n, slot };
             active.push(item);
             item.timer = setTimeout(() => leave(item), life * 1000);
         };
 
-        const clear = fast => active.slice().forEach(i => { clearTimeout(i.timer); leave(i, fast); });
+        const clear = fast => { active.slice().forEach(i => leave(i, fast)); row = 0; };
 
         const resync = now => {
             idx = 0;
@@ -390,7 +319,7 @@
             lastT = now;
             while (idx < lines.length && lines[idx].t <= now) {
                 const l = lines[idx];
-                if (now - l.t < 1.2) spawn(l, clamp(l.end - l.t + 1.3, 2.6, 8));
+                if (now - l.t < 1.2) spawn(l, clamp(l.end - l.t + 4, 4, 9));
                 idx++;
             }
         };
