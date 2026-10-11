@@ -25,93 +25,36 @@
     const bars = $$('.bars i');
 
     const audio = (() => {
-        let ctx, master, analyser, started = false, on = false, i = 0;
+        const el = new Audio('track.mp3');
+        el.loop = true;
+        el.preload = 'auto';
+        let ctx, gain, analyser, on = false;
         const data = new Uint8Array(32);
-        const chords = [[45,52,57,60,64],[41,48,53,57,60],[43,50,55,59,62],[40,47,52,55,59]];
-        const step = 7;
-        const freq = m => 440 * Math.pow(2, (m - 69) / 12);
 
-        const impulse = () => {
-            const len = ctx.sampleRate * 3;
-            const buf = ctx.createBuffer(2, len, ctx.sampleRate);
-            for (let ch = 0; ch < 2; ch++) {
-                const d = buf.getChannelData(ch);
-                for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / len, 2.8);
-            }
-            return buf;
-        };
-
-        const voice = (midi, t, dur, type, gain, dest) => {
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.type = type;
-            o.frequency.value = freq(midi);
-            o.detune.value = (Math.random() - .5) * 10;
-            g.gain.setValueAtTime(0, t);
-            g.gain.linearRampToValueAtTime(gain, t + dur * .35);
-            g.gain.setValueAtTime(gain, t + dur * .6);
-            g.gain.linearRampToValueAtTime(0, t + dur);
-            o.connect(g).connect(dest);
-            o.start(t);
-            o.stop(t + dur + .1);
-        };
-
-        const start = () => {
-            if (started) return;
-            started = true;
+        const init = () => {
+            if (ctx) return;
             ctx = new (window.AudioContext || window.webkitAudioContext)();
-            master = ctx.createGain();
-            master.gain.value = 0;
+            const src = ctx.createMediaElementSource(el);
+            gain = ctx.createGain();
+            gain.gain.value = 0;
             analyser = ctx.createAnalyser();
             analyser.fftSize = 64;
-            const comp = ctx.createDynamicsCompressor();
-            const filt = ctx.createBiquadFilter();
-            filt.type = 'lowpass';
-            filt.frequency.value = 900;
-            filt.Q.value = .7;
-            const lfo = ctx.createOscillator();
-            const lfoGain = ctx.createGain();
-            lfo.frequency.value = .07;
-            lfoGain.gain.value = 350;
-            lfo.connect(lfoGain).connect(filt.frequency);
-            lfo.start();
-            const conv = ctx.createConvolver();
-            conv.buffer = impulse();
-            const wet = ctx.createGain();
-            wet.gain.value = .55;
-            const dry = ctx.createGain();
-            dry.gain.value = .6;
-            filt.connect(dry).connect(comp);
-            filt.connect(conv).connect(wet).connect(comp);
-            comp.connect(master).connect(analyser).connect(ctx.destination);
-
-            const play = () => {
-                const t = ctx.currentTime + .05;
-                const ch = chords[i % chords.length];
-                ch.forEach((m, k) => {
-                    voice(m + 12, t + k * .12, step + 1.5, 'triangle', .09, filt);
-                    voice(m + 12, t + k * .12, step + 1.5, 'sawtooth', .025, filt);
-                });
-                voice(ch[0], t, step + 1, 'sine', .22, filt);
-                voice(ch[2] + 24, t + 3.5, 3, 'sine', .05, filt);
-                i++;
-            };
-            play();
-            setInterval(play, step * 1000);
+            src.connect(gain).connect(analyser).connect(ctx.destination);
         };
 
         const set = v => {
             on = v;
             soundBtn.classList.toggle('on', v);
             localStorage.setItem('snd', v ? '1' : '0');
-            if (!started) {
-                if (!v) return;
-                start();
-            }
+            if (!v && !ctx) return;
+            init();
             if (ctx.state === 'suspended') ctx.resume();
-            master.gain.cancelScheduledValues(ctx.currentTime);
-            master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
-            master.gain.linearRampToValueAtTime(v ? .9 : 0, ctx.currentTime + 1.2);
+            const t = ctx.currentTime;
+            gain.gain.cancelScheduledValues(t);
+            gain.gain.setValueAtTime(gain.gain.value, t);
+            gain.gain.linearRampToValueAtTime(v ? .9 : 0, t + 1.2);
+            if (v) el.play().catch(() => {});
+            else setTimeout(() => { if (!on) el.pause(); }, 1300);
         };
 
         const draw = () => {
