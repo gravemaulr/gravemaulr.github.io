@@ -6,7 +6,7 @@
     const pick = a => a[Math.floor(Math.random() * a.length)];
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const body = document.body;
-    const TRACK = { title: 'zip-архив', artist: 'CodEK$, люци', file: 'track.mp3' };
+    const TRACK = { title: 'Заебало', artist: 'Dabbackwood, volhey', file: 'track.mp3' };
 
     console.log('%cgravemaulr', 'font:700 28px JetBrains Mono,monospace;color:#c8ff3d;background:#050507;padding:8px 16px;border-radius:6px');
     console.log('%cлезешь в исходники? ну давай. t.me/gravemaulr', 'color:#8b8b9a;font-family:monospace');
@@ -166,11 +166,12 @@
         };
 
         const fromLrclib = async () => {
-            const q = encodeURIComponent(TRACK.artist.split(',')[0] + ' ' + TRACK.title);
-            const r = await fetch('https://lrclib.net/api/search?q=' + q);
+            const r = await fetch('https://lrclib.net/api/search?track_name=' + encodeURIComponent(TRACK.title));
             if (!r.ok) throw 0;
-            const list = await r.json();
-            const hit = list.find(x => x.syncedLyrics && Math.abs(x.duration - 144) < 6) || list.find(x => x.plainLyrics);
+            const names = TRACK.artist.toLowerCase().split(/\s*,\s*/);
+            const list = (await r.json()).filter(x => names.some(n => (x.artistName || '').toLowerCase().includes(n)));
+            const dur = await whenDuration();
+            const hit = list.find(x => x.syncedLyrics && Math.abs(x.duration - dur) < 6) || list.find(x => x.plainLyrics);
             if (!hit) throw 0;
             return hit.syncedLyrics || hit.plainLyrics;
         };
