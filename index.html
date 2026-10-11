@@ -180,9 +180,15 @@
 <div class="sync" id="sync" hidden>
     <div class="sync-head">
         <b>sync</b>
-        <span>Enter — строка · Backspace — назад · S — скачать lyrics.lrc · R — заново</span>
+        <span>Enter / ТАП — строка · Backspace — назад · S — скачать · R — заново</span>
     </div>
     <div class="sync-list" id="syncList"></div>
+    <div class="sync-btns">
+        <button type="button" data-sync="undo">назад</button>
+        <button type="button" data-sync="reset">заново</button>
+        <button type="button" data-sync="save">скачать</button>
+    </div>
+    <button type="button" class="sync-tap" data-sync="tap">ТАП</button>
 </div>
 
 <script src="script.js"></script>

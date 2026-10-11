@@ -435,32 +435,46 @@
                 if (nx) nx.scrollIntoView({ block: 'center' });
             };
             render();
+            const tap = () => {
+                if (!audio.isOn()) { notify('сначала включи музыку'); return; }
+                if (stamps.length >= texts.length) return;
+                stamps.push(audio.el.currentTime);
+                spawn({ text: texts[stamps.length - 1] }, 3.5);
+                render();
+                if (navigator.vibrate) navigator.vibrate(15);
+            };
+            const undo = () => { stamps.pop(); render(); };
+            const reset = () => {
+                stamps.length = 0;
+                audio.el.currentTime = 0;
+                clear(true);
+                render();
+            };
+            const save = () => {
+                const out = [`[ti:${TRACK.title}]`, `[ar:${TRACK.artist}]`].concat(stamps.map((t, k) => `[${fmt(t)}]${texts[k]}`)).join('\n');
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([out], { type: 'text/plain' }));
+                a.download = 'lyrics.lrc';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                notify('lyrics.lrc скачан');
+            };
+            const acts = { tap, undo, reset, save };
+            panel.querySelectorAll('[data-sync]').forEach(b => {
+                b.addEventListener('pointerdown', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    acts[b.dataset.sync]();
+                });
+                b.addEventListener('click', e => e.stopPropagation());
+            });
+            ['touchstart', 'touchmove', 'wheel'].forEach(ev => panel.addEventListener(ev, e => e.stopPropagation(), { passive: true }));
             window.addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (!audio.isOn()) { notify('сначала включи музыку'); return; }
-                    if (stamps.length >= texts.length) return;
-                    const t = audio.el.currentTime;
-                    stamps.push(t);
-                    spawn({ text: texts[stamps.length - 1] }, 3.5);
-                    render();
-                } else if (e.key === 'Backspace') {
-                    e.preventDefault();
-                    stamps.pop();
-                    render();
-                } else if (e.key === 'r' || e.key === 'к') {
-                    stamps.length = 0;
-                    audio.el.currentTime = 0;
-                    clear(true);
-                    render();
-                } else if (e.key === 's' || e.key === 'ы') {
-                    const out = [`[ti:${TRACK.title}]`, `[ar:${TRACK.artist}]`].concat(stamps.map((t, k) => `[${fmt(t)}]${texts[k]}`)).join('\n');
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(new Blob([out], { type: 'text/plain' }));
-                    a.download = 'lyrics.lrc';
-                    a.click();
-                    notify('lyrics.lrc скачан');
-                }
+                if (e.key === 'Enter') { e.preventDefault(); tap(); }
+                else if (e.key === 'Backspace') { e.preventDefault(); undo(); }
+                else if (e.key === 'r' || e.key === 'к') reset();
+                else if (e.key === 's' || e.key === 'ы') save();
             });
         };
 
@@ -479,10 +493,10 @@
     const arm = e => {
         if (armed) return;
         armed = true;
-        if (e.target.closest && e.target.closest('#player')) return;
+        if (e.target.closest && (e.target.closest('#player') || e.target.closest('#sync'))) return;
         if (localStorage.getItem('snd') !== '0') audio.set(true);
     };
-    window.addEventListener('pointerdown', arm, { once: true });
+    window.addEventListener('pointerdown', arm, { once: true, capture: true });
     player.addEventListener('click', () => audio.toggle());
 
     const typed = $('#typed');

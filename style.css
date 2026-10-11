@@ -859,6 +859,39 @@ body.deck-on .slide.anim .brick {
 .sync-row.done span { color: var(--acc); }
 .sync-row.next { color: var(--text); background: rgba(var(--acc-rgb), .08); }
 
+.sync-btns { display: flex; gap: 6px; padding: 8px 10px 0; border-top: 1px solid var(--line); }
+
+.sync-btns button, .sync-tap {
+    font: inherit;
+    color: var(--text);
+    background: rgba(255,255,255,.06);
+    border: 1px solid var(--line2);
+    border-radius: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.sync-btns button { flex: 1; padding: 8px 0; }
+
+.sync-tap {
+    margin: 8px 10px 10px;
+    padding: 22px 0;
+    font-size: 16px;
+    letter-spacing: .3em;
+    color: #000;
+    background: var(--acc);
+    border: 0;
+}
+
+.sync-tap:active, .sync-btns button:active { transform: scale(.97); filter: brightness(1.2); }
+
+@media (max-width: 860px) {
+    .sync { right: 10px; left: 10px; bottom: 10px; width: auto; max-height: 55vh; }
+    .sync-list { max-height: 22vh; }
+}
+
 body.rave .deck, body.rave .lyrics { animation: hue 1.5s linear infinite; }
 
 @keyframes hue { to { filter: hue-rotate(360deg); } }
