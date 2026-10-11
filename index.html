@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" href="avatar.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,16 +21,15 @@
     <div class="loader"><span></span><span></span><span></span></div>
 </div>
 
-<div class="cursor" id="cursor"></div>
-<div class="cursor-ring" id="cursorRing"></div>
-<canvas id="fx"></canvas>
-<div class="spot"></div>
-<div class="scanlines"></div>
-<div class="noise"></div>
+<div class="bg" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+</div>
+<div class="lyrics" id="lyrics" aria-hidden="true"></div>
 <div class="toast" id="toast"></div>
 
 <nav class="nav">
-    <a href="#top" class="nav-logo">gravemaulr</a>
+    <a href="#top" class="nav-logo">gravemaulr<span>.</span></a>
     <div class="nav-links" id="navLinks">
         <span class="nav-ind" id="navInd"></span>
         <a href="#top">home</a>
@@ -39,9 +38,13 @@
         <a href="#stack">stack</a>
         <a href="#contacts">contacts</a>
     </div>
-    <button class="sound" id="sound" aria-label="звук">
+    <button class="player" id="player" aria-label="музыка">
         <span class="bars"><i></i><i></i><i></i><i></i><i></i></span>
-        <span class="sound-label">sound</span>
+        <span class="player-info">
+            <span class="player-title">zip-архив</span>
+            <span class="player-artist">CodEK$, люци</span>
+        </span>
+        <span class="player-bar"><i id="playerProg"></i></span>
     </button>
 </nav>
 
@@ -57,67 +60,40 @@
 <main class="deck" id="deck">
 
 <section class="slide hero" id="top" data-label="home">
-    <div class="hero-grid"></div>
     <div class="slide-scroll">
         <div class="hero-inner">
             <div class="avatar-wrap brick" style="--b:0">
                 <div class="avatar-ring"></div>
-                <div class="avatar-ring r2"></div>
                 <img src="avatar.png" alt="gravemaulr" class="avatar" draggable="false">
                 <span class="status"></span>
             </div>
             <h1 class="title glitch brick" style="--b:1" data-text="gravemaulr">gravemaulr</h1>
             <div class="type brick" style="--b:2"><span class="t" id="typed"></span><span class="caret"></span></div>
             <div class="hero-cta brick" style="--b:3">
-                <a href="https://t.me/gravemaulr" target="_blank" rel="noopener" class="btn magnet"><span>Telegram</span></a>
-                <a href="https://funpay.com/users/17350910/" target="_blank" rel="noopener" class="btn magnet alt"><span>FunPay</span></a>
-                <a href="https://discord.com/users/gravemaulr" target="_blank" rel="noopener" class="btn magnet alt"><span>Discord</span></a>
+                <a href="https://t.me/gravemaulr" target="_blank" rel="noopener" class="btn"><span>Telegram</span></a>
+                <a href="https://funpay.com/users/17350910/" target="_blank" rel="noopener" class="btn alt"><span>FunPay</span></a>
+                <a href="https://discord.com/users/gravemaulr" target="_blank" rel="noopener" class="btn alt"><span>Discord</span></a>
             </div>
-            <div class="meta brick" style="--b:4">
-                <span class="meta-item"><b id="clock">00:00:00</b> msk</span>
-                <span class="meta-dot"></span>
-                <span class="meta-item">online</span>
-                <span class="meta-dot"></span>
-                <span class="meta-item">since 02.2025</span>
-            </div>
-            <a href="#about" class="scroll-hint brick" style="--b:5" aria-label="дальше"><span></span></a>
-        </div>
-    </div>
-    <div class="marquee" aria-hidden="true">
-        <div class="marquee-track" id="marquee">
-            <div class="marquee-group">
-                <span>Python</span><span>Java</span><span>C++</span><span>C#</span><span>JavaScript</span><span>PHP</span><span>C</span><span>Assembly</span><span>HTML</span><span>gravemaulr</span>
-            </div>
+            <div class="meta brick" style="--b:4"><i class="meta-dot"></i><b id="clock">00:00:00</b> msk · online</div>
         </div>
     </div>
 </section>
 
 <section class="slide" id="about" data-label="about">
     <div class="slide-scroll">
-        <div class="wrap">
+        <div class="wrap narrow">
             <div class="label brick" style="--b:0"><span>01</span> about</div>
-            <div class="card tilt brick" style="--b:1">
-                <div class="shapes" data-shape="square"></div>
-                <h2 class="h2">Обо мне</h2>
-                <p class="lead">Программист, остальное вас еб*ть не должно.</p>
-                <p>Иногда пишу код с нуля, иногда чиню то, что сам же сломал.</p>
-                <div class="term">
-                    <div class="term-bar"><i></i><i></i><i></i><span>zsh — gravemaulr</span></div>
-                    <div class="term-body">
-                        <div class="term-line"><b>$</b> whoami</div>
-                        <div class="term-line"><em>gravemaulr</em></div>
-                        <div class="term-line"><b>$</b> cat role.txt</div>
-                        <div class="term-line"><em>программист</em></div>
-                        <div class="term-line"><b>$</b> uptime</div>
-                        <div class="term-line"><em>24/7, иногда сплю</em></div>
-                        <div class="term-line"><b>$</b> ./fix --target=то_что_сам_сломал</div>
-                        <div class="term-line"><em>done ✓</em></div>
-                    </div>
-                </div>
-                <div class="facts">
-                    <div class="fact"><b data-count="9">0</b><span>языков</span></div>
-                    <div class="fact"><b data-count="3">0</b><span>проекта</span></div>
-                    <div class="fact"><b data-count="24" data-suffix="/7">0</b><span>на связи</span></div>
+            <h2 class="h2 brick" style="--b:1">Программист, остальное вас еб*ть не должно.</h2>
+            <p class="muted brick" style="--b:2">Иногда пишу код с нуля, иногда чиню то, что сам же сломал.</p>
+            <div class="term glass brick" style="--b:3">
+                <div class="term-bar"><i></i><i></i><i></i><span>zsh — gravemaulr</span></div>
+                <div class="term-body">
+                    <div class="term-line"><b>$</b> whoami</div>
+                    <div class="term-line"><em>gravemaulr</em></div>
+                    <div class="term-line"><b>$</b> uptime</div>
+                    <div class="term-line"><em>24/7, иногда сплю</em></div>
+                    <div class="term-line"><b>$</b> ./fix --target=то_что_сам_сломал</div>
+                    <div class="term-line"><em>done ✓</em></div>
                 </div>
             </div>
         </div>
@@ -128,27 +104,24 @@
     <div class="slide-scroll">
         <div class="wrap">
             <div class="label brick" style="--b:0"><span>02</span> projects</div>
-            <div class="projects-grid">
-                <a href="https://t.me/TheFailGo" target="_blank" rel="noopener" class="project brick" style="--b:1;--acc-rgb:200,255,61">
-                    <div class="shapes" data-shape="square"></div>
+            <div class="projects">
+                <a href="https://t.me/TheFailGo" target="_blank" rel="noopener" class="project glass brick" style="--b:1;--c:200,255,61">
                     <span class="project-num">01</span>
-                    <span class="project-arrow">↗</span>
                     <span class="project-name">TheFailGo</span>
-                    <span class="project-tag">@TheFailGo · telegram</span>
+                    <span class="project-tag">@TheFailGo</span>
+                    <span class="project-arrow">↗</span>
                 </a>
-                <a href="https://t.me/playworldmc" target="_blank" rel="noopener" class="project brick" style="--b:2;--acc-rgb:88,240,255">
-                    <div class="shapes" data-shape="circle"></div>
+                <a href="https://t.me/playworldmc" target="_blank" rel="noopener" class="project glass brick" style="--b:2;--c:88,240,255">
                     <span class="project-num">02</span>
-                    <span class="project-arrow">↗</span>
                     <span class="project-name">PlayWorld</span>
-                    <span class="project-tag">@playworldmc · telegram</span>
-                </a>
-                <a href="https://t.me/chillvisual" target="_blank" rel="noopener" class="project brick" style="--b:3;--acc-rgb:255,61,127">
-                    <div class="shapes" data-shape="triangle"></div>
-                    <span class="project-num">03</span>
+                    <span class="project-tag">@playworldmc</span>
                     <span class="project-arrow">↗</span>
+                </a>
+                <a href="https://t.me/chillvisual" target="_blank" rel="noopener" class="project glass brick" style="--b:3;--c:255,61,127">
+                    <span class="project-num">03</span>
                     <span class="project-name">ChillVisual</span>
-                    <span class="project-tag">@chillvisual · telegram</span>
+                    <span class="project-tag">@chillvisual</span>
+                    <span class="project-arrow">↗</span>
                 </a>
             </div>
         </div>
@@ -157,23 +130,19 @@
 
 <section class="slide" id="stack" data-label="stack">
     <div class="slide-scroll">
-        <div class="wrap">
+        <div class="wrap narrow">
             <div class="label brick" style="--b:0"><span>03</span> stack</div>
-            <div class="card brick" style="--b:1">
-                <div class="shapes" data-shape="circle"></div>
-                <h2 class="h2">Технологический стек</h2>
-                <p>От низкого уровня до веба. Если нужно — разберусь и в остальном.</p>
-                <div class="stack-grid">
-                    <span class="chip brick" style="--b:2"><span>Python</span></span>
-                    <span class="chip brick" style="--b:3"><span>Java</span></span>
-                    <span class="chip brick" style="--b:4"><span>C++</span></span>
-                    <span class="chip brick" style="--b:5"><span>C#</span></span>
-                    <span class="chip brick" style="--b:6"><span>JavaScript</span></span>
-                    <span class="chip brick" style="--b:7"><span>PHP</span></span>
-                    <span class="chip brick" style="--b:8"><span>C</span></span>
-                    <span class="chip brick" style="--b:9"><span>Assembly</span></span>
-                    <span class="chip brick" style="--b:10"><span>HTML</span></span>
-                </div>
+            <h2 class="h2 brick" style="--b:1">От ассемблера до веба.</h2>
+            <div class="stack-grid">
+                <span class="chip brick" style="--b:2">Python</span>
+                <span class="chip brick" style="--b:3">Java</span>
+                <span class="chip brick" style="--b:4">C++</span>
+                <span class="chip brick" style="--b:5">C#</span>
+                <span class="chip brick" style="--b:6">JavaScript</span>
+                <span class="chip brick" style="--b:7">PHP</span>
+                <span class="chip brick" style="--b:8">C</span>
+                <span class="chip brick" style="--b:9">Assembly</span>
+                <span class="chip brick" style="--b:10">HTML</span>
             </div>
         </div>
     </div>
@@ -181,10 +150,10 @@
 
 <section class="slide" id="contacts" data-label="contacts">
     <div class="slide-scroll">
-        <div class="wrap">
+        <div class="wrap narrow">
             <div class="label brick" style="--b:0"><span>04</span> contacts</div>
             <h2 class="h2 big brick" style="--b:1">Погнали?</h2>
-            <div class="contacts-list">
+            <div class="contacts">
                 <div class="contact brick" style="--b:2">
                     <span class="contact-k">telegram</span>
                     <a href="https://t.me/gravemaulr" target="_blank" rel="noopener" class="contact-v">@gravemaulr</a>
@@ -197,16 +166,24 @@
                 </div>
                 <div class="contact brick" style="--b:4">
                     <span class="contact-k">funpay</span>
-                    <a href="https://funpay.com/users/17350910/" target="_blank" rel="noopener" class="contact-v">funpay.com/users/17350910</a>
+                    <a href="https://funpay.com/users/17350910/" target="_blank" rel="noopener" class="contact-v">funpay/17350910</a>
                     <button class="copy" data-copy="https://funpay.com/users/17350910/">copy</button>
                 </div>
             </div>
-            <div class="footer brick" style="--b:5"><b>gravemaulr</b> © 2026</div>
+            <div class="footer brick" style="--b:5">gravemaulr © 2026</div>
         </div>
     </div>
 </section>
 
 </main>
+
+<div class="sync" id="sync" hidden>
+    <div class="sync-head">
+        <b>sync</b>
+        <span>Enter — строка · Backspace — назад · S — скачать lyrics.lrc · R — заново</span>
+    </div>
+    <div class="sync-list" id="syncList"></div>
+</div>
 
 <script src="script.js"></script>
 </body>

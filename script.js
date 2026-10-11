@@ -1,13 +1,12 @@
 (() => {
     const $ = (s, r = document) => r.querySelector(s);
     const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-    const fine = matchMedia('(pointer:fine)').matches;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const lerp = (a, b, t) => a + (b - a) * t;
-    const root = document.documentElement;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const body = document.body;
-
-    if (fine) body.classList.add('fine');
+    const TRACK = { title: 'zip-архив', artist: 'CodEK$, люци', file: 'track.mp3' };
 
     console.log('%cgravemaulr', 'font:700 28px JetBrains Mono,monospace;color:#c8ff3d;background:#050507;padding:8px 16px;border-radius:6px');
     console.log('%cлезешь в исходники? ну давай. t.me/gravemaulr', 'color:#8b8b9a;font-family:monospace');
@@ -21,15 +20,20 @@
         toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
     };
 
-    const soundBtn = $('#sound');
+    const player = $('#player');
+    const playerProg = $('#playerProg');
     const bars = $$('.bars i');
+    const lyricsLayer = $('#lyrics');
+    const bgEl = $('.bg');
+    const avatarWrap = $('.avatar-wrap');
 
     const audio = (() => {
-        const el = new Audio('track.mp3');
+        const el = new Audio(TRACK.file);
         el.loop = true;
         el.preload = 'auto';
         let ctx, gain, analyser, on = false;
-        const data = new Uint8Array(32);
+        const data = new Uint8Array(128);
+        const listeners = [];
 
         const init = () => {
             if (ctx) return;
@@ -38,14 +42,16 @@
             gain = ctx.createGain();
             gain.gain.value = 0;
             analyser = ctx.createAnalyser();
-            analyser.fftSize = 64;
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = .6;
             src.connect(gain).connect(analyser).connect(ctx.destination);
         };
 
         const set = v => {
             on = v;
-            soundBtn.classList.toggle('on', v);
+            player.classList.toggle('on', v);
             localStorage.setItem('snd', v ? '1' : '0');
+            listeners.forEach(f => f(v));
             if (!v && !ctx) return;
             init();
             if (ctx.state === 'suspended') ctx.resume();
@@ -57,122 +63,429 @@
             else setTimeout(() => { if (!on) el.pause(); }, 1300);
         };
 
-        const draw = () => {
-            if (analyser && on) {
-                analyser.getByteFrequencyData(data);
-                bars.forEach((b, k) => { b.style.height = 3 + (data[k * 2 + 1] / 255) * 11 + 'px'; });
+        const read = () => {
+            if (!analyser || !on) return null;
+            analyser.getByteFrequencyData(data);
+            return data;
+        };
+
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({ title: TRACK.title, artist: TRACK.artist });
+            navigator.mediaSession.setActionHandler('play', () => set(true));
+            navigator.mediaSession.setActionHandler('pause', () => set(false));
+        }
+
+        return {
+            el,
+            set,
+            read,
+            toggle: () => set(!on),
+            isOn: () => on,
+            onChange: f => listeners.push(f)
+        };
+    })();
+
+    const pulse = (() => {
+        let avg = .2, beat = 0, energy = 0, lastBeat = 0;
+        const subs = [];
+        const update = now => {
+            const d = audio.read();
+            if (d) {
+                let bass = 0;
+                for (let k = 0; k < 4; k++) bass += d[k];
+                bass /= 4 * 255;
+                let full = 0;
+                for (let k = 0; k < 64; k++) full += d[k];
+                full /= 64 * 255;
+                avg += (bass - avg) * .04;
+                if (bass > avg * 1.18 + .03 && bass > .35 && now - lastBeat > 200) {
+                    lastBeat = now;
+                    beat = 1;
+                    subs.forEach(f => f(bass));
+                }
+                energy += (full - energy) * .12;
+                bars.forEach((b, k) => { b.style.height = 3 + (d[k * 6 + 1] / 255) * 13 + 'px'; });
             } else {
+                energy *= .94;
                 bars.forEach(b => { b.style.height = '3px'; });
             }
-            requestAnimationFrame(draw);
+            beat *= .9;
+            const b = beat.toFixed(3), e = energy.toFixed(3);
+            [lyricsLayer, bgEl, avatarWrap].forEach(n => {
+                n.style.setProperty('--beat', b);
+                n.style.setProperty('--energy', e);
+            });
+            const dur = audio.el.duration;
+            playerProg.style.transform = `scaleX(${dur ? audio.el.currentTime / dur : 0})`;
         };
-        draw();
-
-        return { set, toggle: () => set(!on) };
+        return { update, onBeat: f => subs.push(f) };
     })();
+
+    const lyrics = (() => {
+        const COLORS = ['200,255,61', '88,240,255', '255,61,127', '255,255,255'];
+        const ENTER = ['rise', 'flip', 'swing', 'zoom', 'type', 'scatter', 'slice', 'drop', 'wave'];
+        const EXIT = ['deep', 'up', 'scatter', 'dissolve', 'blur'];
+        const syncMode = new URLSearchParams(location.search).has('sync');
+        let lines = [], idx = 0, lastT = 0, recentEnter = [], active = [];
+
+        const parse = text => {
+            const out = [];
+            let timed = false, offset = 0;
+            const off = text.match(/\[offset:\s*([+-]?\d+)\]/i);
+            if (off) offset = +off[1] / 1000;
+            text.split(/\r?\n/).forEach(raw => {
+                const stamps = [...raw.matchAll(/\[(\d+):(\d+(?:[.:]\d+)?)\]/g)];
+                const words = raw.replace(/\[[^\]]*\]/g, '').trim();
+                if (stamps.length) {
+                    timed = true;
+                    stamps.forEach(m => out.push({ t: +m[1] * 60 + parseFloat(m[2].replace(':', '.')) - offset, text: words }));
+                } else if (words && !/^\[.*\]$/.test(raw.trim())) {
+                    out.push({ t: null, text: words });
+                }
+            });
+            if (timed) return { timed: true, lines: out.filter(l => l.t !== null).sort((a, b) => a.t - b.t) };
+            return { timed: false, lines: out };
+        };
+
+        const spread = (list, dur) => {
+            const start = dur * .07, end = dur * .96;
+            const w = list.map(l => l.text.length + 10);
+            const total = w.reduce((a, b) => a + b, 0);
+            let acc = start;
+            list.forEach((l, k) => {
+                l.t = acc;
+                acc += (end - start) * w[k] / total;
+            });
+            return list;
+        };
+
+        const fetchText = async url => {
+            const r = await fetch(url, { cache: 'no-cache' });
+            if (!r.ok) throw 0;
+            return r.text();
+        };
+
+        const fromLrclib = async () => {
+            const q = encodeURIComponent(TRACK.artist.split(',')[0] + ' ' + TRACK.title);
+            const r = await fetch('https://lrclib.net/api/search?q=' + q);
+            if (!r.ok) throw 0;
+            const list = await r.json();
+            const hit = list.find(x => x.syncedLyrics && Math.abs(x.duration - 144) < 6) || list.find(x => x.plainLyrics);
+            if (!hit) throw 0;
+            return hit.syncedLyrics || hit.plainLyrics;
+        };
+
+        const whenDuration = () => new Promise(res => {
+            if (audio.el.duration) return res(audio.el.duration);
+            audio.el.addEventListener('loadedmetadata', () => res(audio.el.duration), { once: true });
+        });
+
+        const load = async () => {
+            let text = null;
+            for (const src of [() => fetchText('lyrics.lrc'), () => fetchText('lyrics.txt'), fromLrclib]) {
+                try {
+                    text = await src();
+                    if (text && text.trim()) break;
+                } catch {}
+            }
+            if (!text) return;
+            const res = parse(text);
+            lines = res.timed ? res.lines : spread(res.lines, await whenDuration());
+            lines.forEach((l, k) => {
+                const next = lines[k + 1];
+                l.end = next ? next.t : l.t + 4;
+            });
+            if (syncMode) initSync(res.lines.map(l => l.text).filter(Boolean));
+        };
+
+        const place = () => {
+            let best = null, bestScore = -1;
+            const mob = innerWidth < 860;
+            for (let k = 0; k < 12; k++) {
+                const c = { x: rand(.14, .86), y: rand(mob ? .2 : .14, .88) };
+                let d = 1;
+                active.forEach(a => { d = Math.min(d, Math.hypot((a.x - c.x) * 1.4, a.y - c.y)); });
+                const centre = Math.hypot(c.x - .5, (c.y - .5) * 1.2);
+                const score = d + Math.min(centre, .25) * .5;
+                if (score > bestScore) { bestScore = score; best = c; }
+            }
+            return best;
+        };
+
+        const build = text => {
+            const box = document.createElement('div');
+            box.className = 'ly';
+            const a = document.createElement('div');
+            a.className = 'ly-a';
+            const b = document.createElement('div');
+            b.className = 'ly-b';
+            const words = [], chars = [];
+            text.split(/\s+/).forEach(w => {
+                const ws = document.createElement('span');
+                ws.className = 'ly-w';
+                [...w].forEach(ch => {
+                    const cs = document.createElement('span');
+                    cs.className = 'ly-c';
+                    cs.textContent = ch;
+                    ws.appendChild(cs);
+                    chars.push(cs);
+                });
+                b.appendChild(ws);
+                words.push(ws);
+            });
+            a.appendChild(b);
+            box.appendChild(a);
+            return { box, a, b, words, chars };
+        };
+
+        const stagger = (units, total, frames, opts) => {
+            const step = units.length > 1 ? total / (units.length - 1) : 0;
+            units.forEach((u, k) => {
+                const f = typeof frames === 'function' ? frames(u, k) : frames;
+                u.animate(f, Object.assign({ fill: 'backwards', easing: 'cubic-bezier(.22,1,.36,1)' }, opts, { delay: k * step + (opts.delay || 0) }));
+            });
+        };
+
+        const enter = (type, n, win) => {
+            const { a, words, chars } = n;
+            const ease = 'cubic-bezier(.22,1,.36,1)';
+            switch (type) {
+                case 'rise':
+                    stagger(words, win, [
+                        { opacity: 0, transform: 'translate3d(0,70px,-260px) rotateX(-75deg)', filter: 'blur(8px)' },
+                        { opacity: 1, transform: 'none', filter: 'blur(0)' }
+                    ], { duration: 900 });
+                    break;
+                case 'flip':
+                    stagger(chars, win, [
+                        { opacity: 0, transform: 'translateY(.35em) rotateX(95deg)' },
+                        { opacity: 1, transform: 'none' }
+                    ], { duration: 650 });
+                    break;
+                case 'swing':
+                    a.animate([
+                        { opacity: 0, transform: `rotateY(${pick([-1, 1]) * 100}deg) translateZ(-200px)` },
+                        { opacity: 1, transform: 'none' }
+                    ], { duration: 1200, easing: 'cubic-bezier(.34,1.3,.64,1)', fill: 'backwards' });
+                    break;
+                case 'zoom':
+                    a.animate([
+                        { opacity: 0, transform: 'translateZ(-1600px)', filter: 'blur(16px)' },
+                        { opacity: 1, transform: 'none', filter: 'blur(0)' }
+                    ], { duration: 1300, easing: ease, fill: 'backwards' });
+                    break;
+                case 'type':
+                    stagger(chars, win * 1.2, [
+                        { opacity: 0, transform: 'scale(1.6)', textShadow: '0 0 24px #fff' },
+                        { opacity: 1, transform: 'none', textShadow: '0 0 0 transparent' }
+                    ], { duration: 260, easing: 'steps(3,end)' });
+                    break;
+                case 'scatter':
+                    stagger(chars, win * .5, () => [
+                        { opacity: 0, transform: `translate3d(${rand(-260, 260)}px,${rand(-200, 200)}px,${rand(-600, 300)}px) rotate(${rand(-180, 180)}deg)` },
+                        { opacity: 1, transform: 'none' }
+                    ], { duration: 1100 });
+                    break;
+                case 'slice':
+                    a.animate([
+                        { clipPath: 'inset(0 100% 0 0)', transform: 'skewX(-25deg) translateX(-40px)' },
+                        { clipPath: 'inset(0 0% 0 0)', transform: 'none' }
+                    ], { duration: 900, easing: ease, fill: 'backwards' });
+                    break;
+                case 'drop':
+                    stagger(words, win, () => [
+                        { opacity: 0, transform: `translateY(-140px) rotateZ(${rand(-30, 30)}deg)` },
+                        { opacity: 1, transform: 'none' }
+                    ], { duration: 800, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+                    break;
+                default:
+                    stagger(chars, win * .8, [
+                        { opacity: 0, transform: 'translateY(1em) rotateZ(12deg)' },
+                        { opacity: 1, transform: 'none' }
+                    ], { duration: 700 });
+            }
+        };
+
+        const leave = (item, fast) => {
+            if (item.gone) return;
+            item.gone = true;
+            active = active.filter(x => x !== item);
+            const { a, chars, box } = item.node;
+            const type = fast ? 'blur' : pick(EXIT);
+            const dur = fast ? 500 : 1100;
+            let anim;
+            if (type === 'scatter' || type === 'dissolve') {
+                chars.forEach(c => {
+                    c.animate(type === 'scatter'
+                        ? [{ opacity: 1 }, { opacity: 0, transform: `translate3d(${rand(-200, 200)}px,${rand(-160, 160)}px,${rand(-500, 200)}px) rotate(${rand(-140, 140)}deg)` }]
+                        : [{ opacity: 1 }, { opacity: 0, filter: 'blur(6px)' }],
+                        { duration: dur, delay: rand(0, 400), easing: 'cubic-bezier(.55,0,.8,.3)', fill: 'forwards' });
+                });
+                anim = a.animate([{ opacity: 1 }, { opacity: 1 }], { duration: dur + 420, fill: 'forwards' });
+            } else {
+                const to = {
+                    deep: { opacity: 0, transform: 'translateZ(-800px)', filter: 'blur(10px)' },
+                    up: { opacity: 0, transform: 'translateY(-90px) rotateX(55deg)', filter: 'blur(4px)' },
+                    blur: { opacity: 0, filter: 'blur(18px)', transform: 'scale(1.15)' }
+                }[type];
+                anim = a.animate([{ opacity: 1, transform: 'none', filter: 'blur(0)' }, to], { duration: dur, easing: 'cubic-bezier(.55,0,.8,.3)', fill: 'forwards' });
+            }
+            anim.onfinish = () => box.remove();
+        };
+
+        const spawn = (line, life) => {
+            if (!line.text) return;
+            while (active.length >= 5) leave(active[0], true);
+            const mob = innerWidth < 860;
+            const pos = place();
+            const n = build(line.text);
+            const len = line.text.length;
+            const size = clamp(118 - len * 1.7, 26, 108) * rand(.85, 1.15) * (mob ? .5 : 1);
+            const color = pick(COLORS);
+            const style = Math.random();
+            n.b.style.setProperty('--lc', color);
+            n.b.style.fontSize = size + 'px';
+            if (style > .62) n.b.classList.add('outline');
+            else if (style > .5) n.b.classList.add('thin');
+            if (Math.random() < .75 && n.words.length > 1) pick(n.words).classList.add('hot');
+            n.box.style.left = pos.x * 100 + '%';
+            n.box.style.top = pos.y * 100 + '%';
+            const z = rand(-520, 60);
+            const ry = (pos.x < .5 ? 1 : -1) * rand(6, 38);
+            const rx = rand(-16, 16);
+            const rz = rand(-7, 7);
+            const T = (dx, dy, dz, dry) => `translate(-50%,-50%) translate3d(${dx}px,${dy}px,${z + dz}px) rotateX(${rx}deg) rotateY(${ry + dry}deg) rotateZ(${rz}deg)`;
+            n.box.style.transform = T(0, 0, 0, 0);
+            lyricsLayer.appendChild(n.box);
+            if (!reduced) {
+                n.box.animate([
+                    { transform: T(0, 0, 0, 0) },
+                    { transform: T(rand(-40, 40), rand(-30, 30), rand(90, 240), rand(-12, 12)) }
+                ], { duration: life * 1000 + 1600, easing: 'linear', fill: 'forwards' });
+                let type;
+                do { type = pick(ENTER); } while (recentEnter.includes(type));
+                recentEnter = [type].concat(recentEnter).slice(0, 3);
+                enter(type, n, clamp(life * 380, 300, 1500));
+            }
+            const item = { node: n, x: pos.x, y: pos.y };
+            active.push(item);
+            item.timer = setTimeout(() => leave(item), life * 1000);
+        };
+
+        const clear = fast => active.slice().forEach(i => { clearTimeout(i.timer); leave(i, fast); });
+
+        const resync = now => {
+            idx = 0;
+            while (idx < lines.length && lines[idx].t <= now - .25) idx++;
+        };
+
+        const tick = () => {
+            if (syncMode || !lines.length || !audio.isOn()) return;
+            const now = audio.el.currentTime;
+            if (now < lastT - .5) {
+                clear(true);
+                resync(now);
+            }
+            lastT = now;
+            while (idx < lines.length && lines[idx].t <= now) {
+                const l = lines[idx];
+                if (now - l.t < 1.2) spawn(l, clamp(l.end - l.t + 1.3, 2.6, 8));
+                idx++;
+            }
+        };
+
+        pulse.onBeat(() => {
+            active.forEach(item => {
+                if (Math.random() > .6) return;
+                const c = pick(item.node.chars);
+                if (c) c.animate([{ transform: 'none' }, { transform: `translateY(-.18em) rotate(${rand(-12, 12)}deg)` }, { transform: 'none' }], { duration: 220, easing: 'ease-out' });
+            });
+        });
+
+        audio.onChange(on => {
+            lyricsLayer.classList.toggle('off', !on);
+            if (!on) setTimeout(() => { if (!audio.isOn()) clear(true); }, 900);
+            else {
+                lastT = audio.el.currentTime;
+                resync(lastT);
+            }
+        });
+
+        const initSync = texts => {
+            const panel = $('#sync');
+            const list = $('#syncList');
+            const stamps = [];
+            panel.hidden = false;
+            const fmt = t => {
+                const m = Math.floor(t / 60), s = (t % 60).toFixed(2).padStart(5, '0');
+                return `${String(m).padStart(2, '0')}:${s}`;
+            };
+            const render = () => {
+                list.innerHTML = '';
+                texts.forEach((t, k) => {
+                    const row = document.createElement('div');
+                    row.className = 'sync-row' + (k < stamps.length ? ' done' : k === stamps.length ? ' next' : '');
+                    const ts = document.createElement('span');
+                    ts.textContent = k < stamps.length ? fmt(stamps[k]) : '--:--.--';
+                    row.append(ts, document.createTextNode(t));
+                    list.appendChild(row);
+                });
+                const nx = $('.next', list);
+                if (nx) nx.scrollIntoView({ block: 'center' });
+            };
+            render();
+            window.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!audio.isOn()) { notify('сначала включи музыку'); return; }
+                    if (stamps.length >= texts.length) return;
+                    const t = audio.el.currentTime;
+                    stamps.push(t);
+                    spawn({ text: texts[stamps.length - 1] }, 3.5);
+                    render();
+                } else if (e.key === 'Backspace') {
+                    e.preventDefault();
+                    stamps.pop();
+                    render();
+                } else if (e.key === 'r' || e.key === 'к') {
+                    stamps.length = 0;
+                    audio.el.currentTime = 0;
+                    clear(true);
+                    render();
+                } else if (e.key === 's' || e.key === 'ы') {
+                    const out = [`[ti:${TRACK.title}]`, `[ar:${TRACK.artist}]`].concat(stamps.map((t, k) => `[${fmt(t)}]${texts[k]}`)).join('\n');
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(new Blob([out], { type: 'text/plain' }));
+                    a.download = 'lyrics.lrc';
+                    a.click();
+                    notify('lyrics.lrc скачан');
+                }
+            });
+        };
+
+        load();
+        return { tick };
+    })();
+
+    const loop = now => {
+        pulse.update(now);
+        lyrics.tick();
+        requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
 
     let armed = false;
     const arm = e => {
         if (armed) return;
         armed = true;
-        if (e.target.closest('#sound')) return;
+        if (e.target.closest && e.target.closest('#player')) return;
         if (localStorage.getItem('snd') !== '0') audio.set(true);
     };
     window.addEventListener('pointerdown', arm, { once: true });
-
-    if (fine) {
-        const dot = $('#cursor');
-        const ring = $('#cursorRing');
-        let mx = innerWidth / 2, my = innerHeight / 2, rx = mx, ry = my;
-        window.addEventListener('mousemove', e => {
-            mx = e.clientX;
-            my = e.clientY;
-            root.style.setProperty('--mx', mx + 'px');
-            root.style.setProperty('--my', my + 'px');
-        });
-        window.addEventListener('mousedown', () => ring.classList.add('down'));
-        window.addEventListener('mouseup', () => ring.classList.remove('down'));
-        document.addEventListener('mouseover', e => {
-            const link = e.target.closest('a,button,.chip,.project');
-            ring.classList.toggle('hover', !!link);
-            ring.classList.toggle('text', !link && !!e.target.closest('p,.term-body,.h2,.title'));
-        });
-        const tick = () => {
-            rx = lerp(rx, mx, .18);
-            ry = lerp(ry, my, .18);
-            dot.style.transform = `translate3d(${mx}px,${my}px,0) translate(-50%,-50%)`;
-            ring.style.transform = `translate3d(${rx}px,${ry}px,0) translate(-50%,-50%)`;
-            requestAnimationFrame(tick);
-        };
-        tick();
-    }
-
-    const cv = $('#fx');
-    const cx = cv.getContext('2d');
-    const dpr = Math.min(devicePixelRatio || 1, 1.5);
-    let W, H, pts = [];
-    const mouse = { x: -1e4, y: -1e4 };
-    const resize = () => {
-        W = cv.width = innerWidth * dpr;
-        H = cv.height = innerHeight * dpr;
-        cv.style.width = innerWidth + 'px';
-        cv.style.height = innerHeight + 'px';
-        const n = Math.min(110, Math.floor(innerWidth * innerHeight / 14000));
-        pts = Array.from({ length: n }, () => ({
-            x: Math.random() * W,
-            y: Math.random() * H,
-            vx: (Math.random() - .5) * .35 * dpr,
-            vy: (Math.random() - .5) * .35 * dpr,
-            r: (Math.random() * 1.4 + .4) * dpr
-        }));
-    };
-    resize();
-    window.addEventListener('resize', resize);
-    window.addEventListener('mousemove', e => {
-        mouse.x = e.clientX * dpr;
-        mouse.y = e.clientY * dpr;
-    });
-    const drawFx = () => {
-        cx.clearRect(0, 0, W, H);
-        const link = 130 * dpr, pull = 180 * dpr, vmax = 1.2 * dpr;
-        for (const p of pts) {
-            const dx = mouse.x - p.x, dy = mouse.y - p.y, dist = Math.hypot(dx, dy) || 1;
-            if (dist < pull) {
-                p.vx -= dx / dist * .02 * dpr;
-                p.vy -= dy / dist * .02 * dpr;
-            }
-            const sp = Math.hypot(p.vx, p.vy);
-            if (sp > vmax) { p.vx = p.vx / sp * vmax; p.vy = p.vy / sp * vmax; }
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vx *= .995;
-            p.vy *= .995;
-            if (p.x < 0 || p.x > W) p.vx *= -1;
-            if (p.y < 0 || p.y > H) p.vy *= -1;
-            cx.beginPath();
-            cx.arc(p.x, p.y, p.r, 0, 7);
-            cx.fillStyle = 'rgba(200,255,61,.55)';
-            cx.fill();
-        }
-        cx.lineWidth = dpr * .6;
-        for (let a = 0; a < pts.length; a++) {
-            for (let b = a + 1; b < pts.length; b++) {
-                const p = pts[a], q = pts[b], d = Math.hypot(p.x - q.x, p.y - q.y);
-                if (d < link) {
-                    cx.strokeStyle = `rgba(200,255,61,${(1 - d / link) * .18})`;
-                    cx.beginPath();
-                    cx.moveTo(p.x, p.y);
-                    cx.lineTo(q.x, q.y);
-                    cx.stroke();
-                }
-            }
-        }
-        requestAnimationFrame(drawFx);
-    };
-    if (!reduced) drawFx();
+    player.addEventListener('click', () => audio.toggle());
 
     const typed = $('#typed');
-    const phrases = ['программист', 'пишу код с нуля', 'чиню то, что сам сломал', 'python · java · c++ · c#', 'asm когда скучно', 'gravemaulr'];
+    const phrases = ['программист', 'пишу код с нуля', 'чиню то, что сам сломал', 'python · java · c++ · c#', 'asm когда скучно'];
     let pi = 0, ci = 0, del = false;
     const type = () => {
         const p = phrases[pi];
@@ -193,87 +506,16 @@
     setTimeout(type, 1400);
 
     const clock = $('#clock');
-    const fmt = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const tickClock = () => { clock.textContent = fmt.format(new Date()); };
+    const fmtClock = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const tickClock = () => { clock.textContent = fmtClock.format(new Date()); };
     tickClock();
     setInterval(tickClock, 1000);
-
-    const mq = $('#marquee');
-    mq.appendChild(mq.firstElementChild.cloneNode(true));
-
-    $$('.card').forEach(card => {
-        const tilt = card.classList.contains('tilt');
-        card.addEventListener('mousemove', e => {
-            const r = card.getBoundingClientRect();
-            const x = e.clientX - r.left, y = e.clientY - r.top;
-            card.style.setProperty('--x', x + 'px');
-            card.style.setProperty('--y', y + 'px');
-            if (tilt && fine && !card.closest('.slide:not(.active)')) {
-                card.style.transform = `perspective(900px) rotateX(${(y / r.height - .5) * -5}deg) rotateY(${(x / r.width - .5) * 5}deg)`;
-            }
-        });
-        card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-    });
-
-    if (fine) {
-        $$('.magnet').forEach(el => {
-            el.addEventListener('mousemove', e => {
-                const r = el.getBoundingClientRect();
-                el.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * .25}px,${(e.clientY - r.top - r.height / 2) * .35}px)`;
-            });
-            el.addEventListener('mouseleave', () => { el.style.transform = ''; });
-        });
-    }
-
-    const counted = new WeakSet();
-    const runCounters = section => {
-        $$('[data-count]', section).forEach(el => {
-            if (counted.has(el)) return;
-            counted.add(el);
-            const end = +el.dataset.count;
-            const suf = el.dataset.suffix || '';
-            const t0 = performance.now() + 500;
-            const run = now => {
-                const k = Math.max(0, Math.min(1, (now - t0) / 1400));
-                el.textContent = Math.round(end * (1 - Math.pow(1 - k, 3))) + suf;
-                if (k < 1) requestAnimationFrame(run);
-            };
-            requestAnimationFrame(run);
-        });
-    };
 
     const runTerm = section => {
         const term = $('.term', section);
         if (!term || term.dataset.done) return;
         term.dataset.done = '1';
-        $$('.term-line', term).forEach((l, k) => setTimeout(() => l.classList.add('show'), 700 + k * 420));
-    };
-
-    const shapeTypes = ['square', 'circle', 'triangle'];
-    const spawnShapes = section => {
-        if (reduced || !fine) return;
-        $$('.shapes', section).forEach(box => {
-            if (box.dataset.done) return;
-            box.dataset.done = '1';
-            const type = shapeTypes.includes(box.dataset.shape) ? box.dataset.shape : 'square';
-            const frag = document.createDocumentFragment();
-            for (let k = 0; k < 8; k++) {
-                const el = document.createElement('i');
-                el.className = 'fs ' + type;
-                const size = Math.random() * 12 + 4;
-                el.style.width = size + 'px';
-                el.style.height = size + 'px';
-                el.style.left = Math.random() * 100 + '%';
-                el.style.top = Math.random() * 100 + '%';
-                el.style.setProperty('--d', (Math.random() * 3 + 2.5) + 's');
-                el.style.setProperty('--tx', (Math.random() * 40 - 20) + 'px');
-                el.style.setProperty('--ty', (Math.random() * 40 - 20) + 'px');
-                el.style.setProperty('--rot', (Math.random() * 240 - 120) + 'deg');
-                el.style.animationDelay = '-' + (Math.random() * 6) + 's';
-                frag.appendChild(el);
-            }
-            box.appendChild(frag);
-        });
+        $$('.term-line', term).forEach((l, k) => setTimeout(() => l.classList.add('show'), 700 + k * 380));
     };
 
     const navLinks = $('#navLinks');
@@ -304,11 +546,8 @@
 
         const setThumb = () => {
             const p = slides.length > 1 ? cur / (slides.length - 1) : 0;
-            if (mobileQ.matches) {
-                thumb.style.transform = `translate(${(track.clientWidth - thumb.clientWidth) * p}px,-50%)`;
-            } else {
-                thumb.style.transform = `translate(-50%,${(track.clientHeight - thumb.clientHeight) * p}px)`;
-            }
+            if (mobileQ.matches) thumb.style.transform = `translate(${(track.clientWidth - thumb.clientWidth) * p}px,-50%)`;
+            else thumb.style.transform = `translate(-50%,${(track.clientHeight - thumb.clientHeight) * p}px)`;
         };
 
         const play = s => {
@@ -317,9 +556,9 @@
             s.classList.add('anim');
         };
 
-        const go = (i, opts = {}) => {
-            i = Math.max(0, Math.min(slides.length - 1, i));
-            if (i === cur && !opts.force) return;
+        const go = i => {
+            i = clamp(i, 0, slides.length - 1);
+            if (i === cur) return;
             const dir = i >= cur ? 1 : -1;
             cur = i;
             slides.forEach((s, k) => {
@@ -338,18 +577,15 @@
             setThumb();
             navItems.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + s.id));
             moveInd(activeNav());
-            history.replaceState(null, '', i ? '#' + s.id : location.pathname + location.search);
+            history.replaceState(null, '', location.pathname + location.search + (i ? '#' + s.id : ''));
             rail.classList.add('flash');
             clearTimeout(flashT);
             flashT = setTimeout(() => rail.classList.remove('flash'), 1100);
-            spawnShapes(s);
-            runCounters(s);
             runTerm(s);
         };
 
-        const scroller = () => $('.slide-scroll', slides[cur]);
         const canScroll = dir => {
-            const sc = scroller();
+            const sc = $('.slide-scroll', slides[cur]);
             if (!sc || sc.scrollHeight <= sc.clientHeight + 2) return false;
             return dir > 0 ? sc.scrollTop + sc.clientHeight < sc.scrollHeight - 2 : sc.scrollTop > 2;
         };
@@ -367,19 +603,13 @@
             if (e.ctrlKey) return;
             const dir = e.deltaY > 0 ? 1 : -1;
             const now = performance.now();
-            if (canScroll(dir)) {
-                innerAt = now;
-                return;
-            }
+            if (canScroll(dir)) { innerAt = now; return; }
             e.preventDefault();
             if (now < lockUntil) {
                 if (now > lockUntil - 220) lockUntil = now + 220;
                 return;
             }
-            if (now - innerAt < 380) {
-                innerAt = now;
-                return;
-            }
+            if (now - innerAt < 380) { innerAt = now; return; }
             if (Math.abs(e.deltaY) < 8) return;
             step(dir);
         }, { passive: false });
@@ -418,24 +648,22 @@
             if (Date.now() - swiped < 400) { e.preventDefault(); e.stopPropagation(); }
         }, true);
 
-        let dragging = false, moved = false;
+        let dragging = false;
         const seek = (x, y) => {
             const r = track.getBoundingClientRect();
             const p = mobileQ.matches ? (x - r.left) / r.width : (y - r.top) / r.height;
-            go(Math.round(Math.max(0, Math.min(1, p)) * (slides.length - 1)));
+            go(Math.round(clamp(p, 0, 1) * (slides.length - 1)));
         };
         const pt = e => e.touches ? e.touches[0] : e;
         const startDrag = e => {
             if (e.cancelable) e.preventDefault();
             dragging = true;
-            moved = false;
             body.classList.add('dragging');
             seek(pt(e).clientX, pt(e).clientY);
         };
         const moveDrag = e => {
             if (!dragging) return;
             if (e.cancelable) e.preventDefault();
-            moved = true;
             seek(pt(e).clientX, pt(e).clientY);
         };
         const endDrag = () => {
@@ -491,7 +719,7 @@
             cancelAnimationFrame(frame);
             k = 0;
             const run = () => {
-                el.textContent = orig.split('').map((c, idx) => idx < k / 2 ? c : chars[Math.floor(Math.random() * chars.length)]).join('');
+                el.textContent = orig.split('').map((c, i) => i < k / 2 ? c : chars[Math.floor(Math.random() * chars.length)]).join('');
                 if (k++ < orig.length * 2) frame = requestAnimationFrame(run);
                 else el.textContent = orig;
             };
@@ -522,18 +750,19 @@
     };
     setTimeout(glitchLoop, 2500);
     title.addEventListener('mouseenter', glitchOnce);
+    pulse.onBeat(v => { if (v > .8 && Math.random() < .15) glitchOnce(); });
 
-    const konami = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+    const konami = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
     let ki = 0;
     window.addEventListener('keydown', e => {
         const key = e.key.toLowerCase();
         const isM = key === 'm' || key === 'ь';
         if (!armed) {
             armed = true;
-            if (!isM && localStorage.getItem('snd') !== '0') audio.set(true);
+            if (!isM && key !== 'enter' && localStorage.getItem('snd') !== '0') audio.set(true);
         }
         if (isM && !e.repeat) audio.toggle();
-        ki = key === konami[ki].toLowerCase() ? ki + 1 : 0;
+        ki = key === konami[ki] ? ki + 1 : 0;
         if (ki === konami.length) {
             ki = 0;
             body.classList.add('rave');
@@ -541,7 +770,6 @@
             setTimeout(() => body.classList.remove('rave'), 8000);
         }
     });
-    soundBtn.addEventListener('click', () => audio.toggle());
 
     const baseTitle = document.title;
     document.addEventListener('visibilitychange', () => {
