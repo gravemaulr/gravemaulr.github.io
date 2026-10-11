@@ -277,7 +277,7 @@
             n.box.style.transformOrigin = align + ' center';
             const color = pick(COLORS);
             n.b.style.setProperty('--lc', color);
-            n.b.style.fontSize = clamp(bandH * .8, 22, mob ? 44 : 96) + 'px';
+            n.b.style.fontSize = clamp(bandH * .32, 13, mob ? 18 : 38) + 'px';
             const st = Math.random();
             if (st > .7) n.b.classList.add('outline');
             else if (st > .58) n.b.classList.add('thin');
@@ -286,7 +286,7 @@
             const rx = rand(-6, 6);
             n.box.style.transform = `translateY(-50%) rotateY(${ry}deg) rotateX(${rx}deg)`;
             lyricsLayer.appendChild(n.box);
-            fit(n, innerWidth * (mob ? .9 : .78), bandH * 1.6);
+            fit(n, innerWidth * (mob ? .88 : .6), bandH * .9);
             if (!reduced) {
                 n.box.animate([
                     { transform: `translateY(-50%) translateX(0) rotateY(${ry}deg) rotateX(${rx}deg)` },
