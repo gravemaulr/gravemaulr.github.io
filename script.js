@@ -6,7 +6,7 @@
     const pick = a => a[Math.floor(Math.random() * a.length)];
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const body = document.body;
-    const TRACK = { title: 'Заебало', artist: 'Dabbackwood, volhey', file: 'track.mp3' };
+    const TRACK = { title: 'LOLI', artist: 'Migas, 5mewmet', file: 'track.mp3' };
 
     console.log('%cgravemaulr', 'font:700 28px JetBrains Mono,monospace;color:#c8ff3d;background:#050507;padding:8px 16px;border-radius:6px');
     console.log('%cлезешь в исходники? ну давай. t.me/gravemaulr', 'color:#8b8b9a;font-family:monospace');
@@ -128,12 +128,60 @@
         let lines = [], idx = 0, lastT = 0, active = [], row = 0, lastEnter = '';
         const rowsCount = () => innerWidth < 860 ? 5 : 6;
 
+        const FX_COLORS = { lime: '200,255,61', cyan: '88,240,255', pink: '255,61,127', red: '255,42,64', gold: '255,198,58', white: '255,255,255', violet: '164,112,255', orange: '255,128,40', blood: '170,0,24', ice: '170,225,255' };
+        const FX_CSS = new Set(['outline', 'thin', 'bold', 'italic', 'caps', 'spaced', 'tight', 'strike', 'under', 'mirror', 'upside', 'tilt', 'blurred', 'ghost', 'dim', 'quiet', 'longshadow', 'mono', 'neon', 'glow', 'rainbow', 'grad', 'shake', 'jitter', 'wave', 'bounce', 'float', 'pulse', 'beat', 'bass', 'spin', 'swing', 'wobble', 'rubber', 'heartbeat', 'drunk', 'breathe', 'flicker', 'chroma', 'glitch', 'stack']);
+        const FX_SIZE = { huge: 1.6, big: 1.3, small: .75, tiny: .55 };
+        const FX_IN = new Set(['type', 'scramble', 'drop', 'rise', 'pop', 'fade', 'blurin', 'stretch', 'fall', 'slam', 'zoomin', 'late']);
+        const FX_OUT = new Set(['explode', 'melt', 'burn', 'evaporate', 'collapse']);
+        const FX_LINE = new Set(['center', 'straight', 'solo', 'hold', 'quick', 'flash', 'shakescreen', 'invert', 'blackout', 'echo', 'karaoke']);
+        const FX_ALIAS = {
+            scream: ['caps', 'huge', 'shake', 'red', 'flash', 'shakescreen', 'slam'],
+            whisper: ['quiet', 'small', 'fade', 'evaporate'],
+            hype: ['caps', 'beat', 'neon', 'bass', 'pop'],
+            dream: ['blurin', 'float', 'dim', 'ice', 'evaporate'],
+            horror: ['blood', 'flicker', 'glitch', 'melt'],
+            chaos: ['scramble', 'jitter', 'chroma', 'explode'],
+            hook: ['center', 'straight', 'caps', 'big', 'karaoke', 'beat', 'echo'],
+            outro: ['center', 'straight', 'fade', 'dim', 'evaporate', 'hold']
+        };
+        const GLYPHS = 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЭЮЯ#$%&@!?/<>01';
+
+        const splitFx = s => s.split(/[\s,]+/).map(x => x.trim().toLowerCase()).filter(Boolean).flatMap(x => FX_ALIAS[x] || [x]);
+
+        const markup = raw => {
+            let s = raw.trim(), line = [];
+            const lm = s.match(/^\{([^}]*)\}\s*/);
+            if (lm) {
+                line = splitFx(lm[1]);
+                s = s.slice(lm[0].length);
+            }
+            const words = [];
+            const re = /<([^>]+)>\{([^}]*)\}|(\S+?)\{([^}]*)\}|(\S+)/g;
+            let m;
+            while ((m = re.exec(s))) {
+                if (m[1] !== undefined) {
+                    const fx = splitFx(m[2]);
+                    m[1].trim().split(/\s+/).forEach(w => words.push({ w, fx: fx.slice() }));
+                } else if (m[3] !== undefined) words.push({ w: m[3], fx: splitFx(m[4]) });
+                else words.push({ w: m[5], fx: [] });
+            }
+            words.forEach(x => {
+                x.fx = x.fx.filter(f => {
+                    if (!FX_LINE.has(f)) return true;
+                    if (!line.includes(f)) line.push(f);
+                    return false;
+                });
+            });
+            return { line, words, plain: words.map(x => x.w).join(' ') };
+        };
+
         const parse = text => {
             const out = [];
             let timed = false, offset = 0;
             const off = text.match(/\[offset:\s*([+-]?\d+)\]/i);
             if (off) offset = +off[1] / 1000;
             text.split(/\r?\n/).forEach(raw => {
+                if (/^\s*(#|\/\/)/.test(raw)) return;
                 const stamps = [...raw.matchAll(/\[(\d+):(\d+(?:[.:]\d+)?)\]/g)];
                 const words = raw.replace(/\[[^\]]*\]/g, '').trim();
                 if (stamps.length) {
@@ -149,7 +197,7 @@
 
         const spread = (list, dur) => {
             const start = dur * .07, end = dur * .96;
-            const w = list.map(l => l.text.length + 10);
+            const w = list.map(l => markup(l.text).plain.length + 10);
             const total = w.reduce((a, b) => a + b, 0);
             let acc = start;
             list.forEach((l, k) => {
@@ -182,15 +230,19 @@
         });
 
         const load = async () => {
-            let text = null;
+            let res = null;
             for (const src of [() => fetchText('lyrics.lrc'), () => fetchText('lyrics.txt'), fromLrclib]) {
                 try {
-                    text = await src();
-                    if (text && text.trim()) break;
+                    const text = await src();
+                    if (!text || !text.trim()) continue;
+                    const r = parse(text);
+                    if (r.lines.length) {
+                        res = r;
+                        break;
+                    }
                 } catch {}
             }
-            if (!text) return;
-            const res = parse(text);
+            if (!res) return;
             lines = res.timed ? res.lines : spread(res.lines, await whenDuration());
             lines.forEach((l, k) => {
                 const next = lines[k + 1];
@@ -199,30 +251,52 @@
             if (syncMode) initSync(res.lines.map(l => l.text).filter(Boolean));
         };
 
-        const build = text => {
+        const build = m => {
             const box = document.createElement('div');
             box.className = 'ly';
             const b = document.createElement('div');
             b.className = 'ly-b';
-            const words = [], chars = [];
-            text.split(/\s+/).forEach(w => {
+            const words = [], chars = [], meta = [];
+            m.words.forEach(({ w, fx }) => {
                 const ws = document.createElement('span');
                 ws.className = 'ly-w';
-                [...w].forEach(ch => {
+                ws.dataset.t = w;
+                const wc = [];
+                [...w].forEach((ch, i) => {
                     const cs = document.createElement('span');
                     cs.className = 'ly-c';
                     cs.textContent = ch;
+                    cs.style.setProperty('--i', i);
                     ws.appendChild(cs);
+                    wc.push(cs);
                     chars.push(cs);
                 });
                 b.appendChild(ws);
                 words.push(ws);
+                meta.push({ el: ws, chars: wc, fx });
             });
             box.appendChild(b);
-            return { box, b, words, chars };
+            return { box, b, words, chars, meta };
+        };
+
+        const applyFx = (el, list) => {
+            list.forEach(f => {
+                const hex = f.match(/^#([0-9a-f]{6})$/);
+                if (hex) {
+                    const v = parseInt(hex[1], 16);
+                    el.style.setProperty('--lc', `${v >> 16},${(v >> 8) & 255},${v & 255}`);
+                    el.classList.add('fx-col');
+                } else if (FX_COLORS[f]) {
+                    el.style.setProperty('--lc', FX_COLORS[f]);
+                    el.classList.add('fx-col');
+                } else if (FX_CSS.has(f)) el.classList.add('fx-' + f);
+                else if (f === 'hot') el.classList.add('hot');
+                else if (FX_SIZE[f] && el.classList.contains('ly-w')) el.style.fontSize = FX_SIZE[f] + 'em';
+            });
         };
 
         const ease = 'cubic-bezier(.22,1,.36,1)';
+        const spring = 'cubic-bezier(.34,1.56,.64,1)';
 
         const enter = (type, n, dir) => {
             const { b, chars, words } = n;
@@ -237,16 +311,93 @@
             else each(chars, 500, [{ opacity: 0 }, { opacity: 1 }], 160);
         };
 
+        const scramble = (cs, delay) => {
+            const orig = cs.map(c => c.textContent);
+            const t0 = performance.now() + delay, dur = 380 + cs.length * 45;
+            const step = now => {
+                const p = (now - t0) / dur;
+                cs.forEach((c, i) => { c.textContent = p * cs.length > i + .5 ? orig[i] : pick(GLYPHS); });
+                if (p < 1 && cs[0].isConnected) requestAnimationFrame(step);
+                else cs.forEach((c, i) => { c.textContent = orig[i]; });
+            };
+            requestAnimationFrame(step);
+        };
+
+        const shakeScreen = p => {
+            const k = [];
+            for (let i = 0; i < 8; i++) k.push({ translate: `${(rand(-8, 8) * p).toFixed(1)}px ${(rand(-6, 6) * p).toFixed(1)}px` });
+            k.push({ translate: '0 0' });
+            [$('#deck'), lyricsLayer, bgEl].forEach(el => el && el.animate(k, { duration: 380, easing: 'linear' }));
+        };
+
+        const flash = lc => {
+            const f = document.createElement('div');
+            f.className = 'fx-flash';
+            f.style.background = `rgba(${lc || '255,255,255'},.5)`;
+            document.body.appendChild(f);
+            f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-out' }).onfinish = () => f.remove();
+        };
+
+        const reveal = (kind, x, k, ci, life) => {
+            const el = x.el, cs = x.chars, d = k * 90;
+            const o = (frames, dur, delay = d, easing = ease) => el.animate(frames, { duration: dur, delay, easing, fill: 'backwards' });
+            if (kind === 'type') cs.forEach((c, i) => c.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 1, delay: (ci + i) * 55, fill: 'backwards' }));
+            else if (kind === 'scramble') scramble(cs, d);
+            else if (kind === 'drop') o([{ opacity: 0, transform: 'translateY(-1.4em)' }, { opacity: 1, transform: 'translateY(.08em)', offset: .7 }, { opacity: 1, transform: 'none' }], 650, d, spring);
+            else if (kind === 'rise') o([{ opacity: 0, transform: 'translateY(1em)' }, { opacity: 1, transform: 'none' }], 700);
+            else if (kind === 'pop') o([{ opacity: 0, transform: 'scale(0)' }, { opacity: 1, transform: 'scale(1.25)', offset: .6 }, { opacity: 1, transform: 'scale(1)' }], 520);
+            else if (kind === 'fade') o([{ opacity: 0 }, { opacity: 1 }], 1400);
+            else if (kind === 'blurin') o([{ opacity: 0, filter: 'blur(16px)' }, { opacity: 1, filter: 'blur(0)' }], 1000);
+            else if (kind === 'stretch') o([{ opacity: 0, transform: 'scaleX(3)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], 700);
+            else if (kind === 'fall') cs.forEach((c, i) => c.animate([{ opacity: 0, transform: 'translateY(-2em) rotate(-25deg)' }, { opacity: 1, transform: 'none' }], { duration: 600, delay: d + i * 40, easing: spring, fill: 'backwards' }));
+            else if (kind === 'slam') {
+                o([{ opacity: 0, transform: 'scale(3.2)', filter: 'blur(6px)' }, { opacity: 1, transform: 'scale(.92)', filter: 'blur(0)', offset: .55 }, { opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }], 420);
+                setTimeout(() => shakeScreen(.6), d + 230);
+            } else if (kind === 'zoomin') o([{ opacity: 0, transform: 'scale(.15)' }, { opacity: 1, transform: 'none' }], 800);
+            else if (kind === 'late') o([{ opacity: 0 }, { opacity: 0, offset: .85 }, { opacity: 1 }], life * 450, 0, 'linear');
+        };
+
+        const OUT = {
+            explode: () => [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate(${rand(-3, 3).toFixed(2)}em, ${rand(-2.5, 2.5).toFixed(2)}em) rotate(${rand(-200, 200).toFixed(0)}deg) scale(${rand(.3, 1.6).toFixed(2)})` }],
+            melt: () => [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: `translateY(${rand(.6, 1.4).toFixed(2)}em) scaleY(${rand(2, 3.5).toFixed(2)})`, filter: 'blur(3px)' }],
+            burn: () => [{ opacity: 1, filter: 'blur(0) brightness(1)', transform: 'none' }, { opacity: .9, color: '#ff7a1a', filter: 'blur(1px) brightness(1.6)', transform: 'translateY(-.1em)', offset: .35 }, { opacity: 0, color: '#3a0a00', filter: 'blur(6px) brightness(.4)', transform: 'translateY(-.5em) scale(.9)' }],
+            evaporate: () => [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: `translate(${rand(-.3, .3).toFixed(2)}em, ${rand(-1.8, -1).toFixed(2)}em) scale(1.3)`, filter: 'blur(8px)' }],
+            collapse: () => [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateY(${rand(2, 4).toFixed(2)}em) rotate(${rand(-90, 90).toFixed(0)}deg)` }]
+        };
+
         const leave = (item, fast) => {
             if (item.gone) return;
             item.gone = true;
             clearTimeout(item.timer);
             active = active.filter(x => x !== item);
-            const anim = item.node.b.animate([
+            const n = item.node;
+            const ghosts = $$('.fx-echo-g', n.box);
+            ghosts.forEach(g => g.animate([{ opacity: .3 }, { opacity: 0 }], { duration: 400, fill: 'forwards' }));
+            const lineOut = item.m.line.find(f => FX_OUT.has(f));
+            const hasOut = !fast && !reduced && (lineOut || n.meta.some(x => x.fx.some(f => FX_OUT.has(f))));
+            if (hasOut) {
+                let longest = 0;
+                n.meta.forEach(x => {
+                    const kind = x.fx.find(f => FX_OUT.has(f)) || lineOut;
+                    if (!kind) {
+                        x.el.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(8px)' }], { duration: 700, easing: 'ease-in', fill: 'forwards' });
+                        longest = Math.max(longest, 700);
+                        return;
+                    }
+                    x.chars.forEach((c, i) => {
+                        const delay = kind === 'melt' || kind === 'evaporate' ? i * 30 : rand(0, 120);
+                        c.animate(OUT[kind](), { duration: 900, delay, easing: kind === 'collapse' ? 'cubic-bezier(.55,0,1,.45)' : 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+                        longest = Math.max(longest, 900 + delay);
+                    });
+                });
+                setTimeout(() => n.box.remove(), longest + 80);
+                return;
+            }
+            const anim = n.b.animate([
                 { opacity: 1, filter: 'blur(0)', transform: 'none' },
                 { opacity: 0, filter: 'blur(8px)', transform: 'translateY(-.3em)' }
             ], { duration: fast ? 400 : 900, easing: 'ease-in', fill: 'forwards' });
-            anim.onfinish = () => item.node.box.remove();
+            anim.onfinish = () => n.box.remove();
         };
 
         const fit = (n, maxW, maxH) => {
@@ -259,8 +410,41 @@
             }
         };
 
+        const lineFx = (L, n, line, life) => {
+            const lc = getComputedStyle(n.b).getPropertyValue('--lc').trim();
+            if (L.has('flash')) flash(lc);
+            if (L.has('shakescreen')) shakeScreen(1);
+            if (L.has('invert')) document.documentElement.animate([{ filter: 'invert(1)' }, { filter: 'invert(0)' }], { duration: 320, easing: 'ease-out' });
+            if (L.has('blackout')) {
+                const k = [{ opacity: 1 }, { opacity: .08, offset: .12 }, { opacity: .08, offset: .85 }, { opacity: 1 }];
+                [$('#deck'), bgEl].forEach(el => el && el.animate(k, { duration: life * 1000, easing: 'ease' }));
+            }
+            if (L.has('echo')) {
+                for (let i = 1; i <= 2; i++) {
+                    const g = n.b.cloneNode(true);
+                    g.classList.add('fx-echo-g');
+                    g.setAttribute('aria-hidden', 'true');
+                    g.style.setProperty('--d', i);
+                    n.box.insertBefore(g, n.b);
+                }
+            }
+            if (L.has('karaoke')) {
+                const span = Number.isFinite(line.t) && Number.isFinite(line.end) ? (line.end - line.t) * 1000 : 2600;
+                const dur = clamp(span * .9, 800, life * 900);
+                const step = dur / Math.max(1, n.chars.length);
+                const to = `rgb(${lc || '255,255,255'})`;
+                n.chars.forEach((c, i) => c.animate([{ color: 'rgba(255,255,255,.22)' }, { color: to }], { duration: Math.max(60, step), delay: i * step, fill: 'both' }));
+            }
+        };
+
         const spawn = (line, life) => {
             if (!line.text) return;
+            const m = line.m || (line.m = markup(line.text));
+            if (!m.words.length) return;
+            const L = new Set(m.line);
+            if (L.has('hold')) life *= 1.7;
+            if (L.has('quick')) life *= .55;
+            if (L.has('solo')) clear(true);
             const N = rowsCount();
             const slot = row % N;
             row++;
@@ -268,36 +452,59 @@
             const mob = innerWidth < 860;
             const top = mob ? 90 : 80, bottom = mob ? 90 : 70;
             const bandH = (innerHeight - top - bottom) / N;
-            const n = build(line.text);
-            const align = slot % 2 ? 'right' : 'left';
-            const dir = align === 'left' ? 1 : -1;
+            const n = build(m);
+            const center = L.has('center') || L.has('stack');
+            const align = center ? 'center' : slot % 2 ? 'right' : 'left';
+            const dir = align === 'right' ? -1 : 1;
             n.box.style.top = top + bandH * (slot + .5) + 'px';
-            n.box.style[align] = (mob ? 4 : rand(5, 12)) + 'vw';
+            if (center) n.box.style.left = '50%';
+            else n.box.style[align] = (mob ? 4 : rand(5, 12)) + 'vw';
             n.box.style.textAlign = align;
-            n.box.style.transformOrigin = align + ' center';
-            const color = pick(COLORS);
-            n.b.style.setProperty('--lc', color);
-            n.b.style.fontSize = clamp(bandH * .32, 13, mob ? 18 : 38) + 'px';
-            const st = Math.random();
-            if (st > .7) n.b.classList.add('outline');
-            else if (st > .58) n.b.classList.add('thin');
-            if (n.words.length > 1 && Math.random() < .7) pick(n.words).classList.add('hot');
-            const ry = dir * rand(8, 18);
-            const rx = rand(-6, 6);
-            n.box.style.transform = `translateY(-50%) rotateY(${ry}deg) rotateX(${rx}deg)`;
-            lyricsLayer.appendChild(n.box);
-            fit(n, innerWidth * (mob ? .88 : .6), bandH * .9);
-            if (!reduced) {
-                n.box.animate([
-                    { transform: `translateY(-50%) translateX(0) rotateY(${ry}deg) rotateX(${rx}deg)` },
-                    { transform: `translateY(-50%) translateX(${dir * 3}vw) rotateY(${ry * .6}deg) rotateX(${rx}deg)` }
-                ], { duration: life * 1000 + 900, easing: 'linear', fill: 'forwards' });
-                let type;
-                do { type = pick(ENTER); } while (type === lastEnter);
-                lastEnter = type;
-                enter(type, n, dir);
+            n.box.style.transformOrigin = center ? 'center center' : align + ' center';
+            n.b.style.setProperty('--lc', pick(COLORS));
+            let mul = 1;
+            m.line.forEach(f => { if (FX_SIZE[f]) mul *= FX_SIZE[f]; });
+            n.b.style.fontSize = clamp(bandH * .32, 13, mob ? 18 : 38) * mul + 'px';
+            applyFx(n.b, m.line.filter(f => f !== 'glitch'));
+            if (L.has('glitch')) n.meta.forEach(x => x.el.classList.add('fx-glitch'));
+            n.meta.forEach(x => applyFx(x.el, x.fx));
+            const custom = m.line.length || m.words.some(x => x.fx.length);
+            if (!custom) {
+                const st = Math.random();
+                if (st > .7) n.b.classList.add('outline');
+                else if (st > .58) n.b.classList.add('thin');
+                if (n.words.length > 1 && Math.random() < .7) pick(n.words).classList.add('hot');
             }
-            const item = { node: n, slot };
+            const flat = L.has('straight');
+            const ry = flat ? 0 : dir * rand(center ? 3 : 8, center ? 8 : 18);
+            const rx = flat ? 0 : rand(-6, 6);
+            const cx = center ? 'translateX(-50%) ' : '';
+            n.box.style.transform = `${cx}translateY(-50%) rotateY(${ry}deg) rotateX(${rx}deg)`;
+            lyricsLayer.appendChild(n.box);
+            fit(n, innerWidth * (mob ? .88 : center ? .8 : .6), bandH * (L.has('stack') ? 2.6 : mul > 1 ? 1.4 : .9));
+            if (!reduced) {
+                const dx = center ? 0 : dir * 3;
+                n.box.animate([
+                    { transform: `${cx}translateY(-50%) translateX(0) rotateY(${ry}deg) rotateX(${rx}deg)` },
+                    { transform: `${cx}translateY(-50%) translateX(${dx}vw) rotateY(${ry * .6}deg) rotateX(${rx}deg)` }
+                ], { duration: life * 1000 + 900, easing: 'linear', fill: 'forwards' });
+                const lineIn = m.line.filter(f => FX_IN.has(f));
+                if (lineIn.length || n.meta.some(x => x.fx.some(f => FX_IN.has(f)))) {
+                    let ci = 0;
+                    n.meta.forEach((x, k) => {
+                        const kind = x.fx.find(f => FX_IN.has(f)) || lineIn[0];
+                        if (kind) reveal(kind, x, k, ci, life);
+                        ci += x.chars.length;
+                    });
+                } else {
+                    let type;
+                    do { type = pick(ENTER); } while (type === lastEnter);
+                    lastEnter = type;
+                    enter(type, n, dir);
+                }
+                lineFx(L, n, line, life);
+            }
+            const item = { node: n, slot, m };
             active.push(item);
             item.timer = setTimeout(() => leave(item), life * 1000);
         };
