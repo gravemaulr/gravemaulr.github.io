@@ -146,6 +146,64 @@
         };
         const GLYPHS = 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЭЮЯ#$%&@!?/<>01';
 
+        const autoParam = new URLSearchParams(location.search);
+        let autoLevel = autoParam.has('noauto') ? 'off' : (autoParam.get('auto') || 'mid').toLowerCase();
+        let autoN = 0, autoHeavyAt = -99, autoLast = '';
+        const AUTO_CFG = {
+            low: { word: .25, line: .3, inP: .35, outP: .2, heavy: 0, gap: 99 },
+            mid: { word: .5, line: .55, inP: .6, outP: .4, heavy: .12, gap: 6 },
+            high: { word: .8, line: .8, inP: .85, outP: .65, heavy: .25, gap: 3 }
+        };
+        const AUTO_STYLE = ['outline', 'thin', 'bold', 'italic', 'caps', 'spaced', 'neon', 'glow', 'grad', 'chroma', 'longshadow', 'mono', 'tilt', 'under'];
+        const AUTO_MOTION = ['wave', 'bounce', 'float', 'pulse', 'beat', 'swing', 'wobble', 'breathe', 'jitter', 'flicker', 'glitch', 'rubber', 'heartbeat', 'shake'];
+        const AUTO_WORD = ['hot', 'neon', 'glow', 'glitch', 'shake', 'caps', 'big', 'rainbow', 'chroma', 'heartbeat', 'bass', 'spin', 'outline', 'strike', 'mirror'];
+        const AUTO_COL = Object.keys(FX_COLORS).filter(c => c !== 'blood');
+        const AUTO_IN = [...FX_IN].filter(f => f !== 'late');
+        const AUTO_OUT = [...FX_OUT];
+        const AUTO_SOFT = ['center', 'straight', 'echo', 'karaoke', 'hold'];
+        const AUTO_HEAVY = ['flash', 'shakescreen', 'invert', 'blackout', 'solo'];
+        const AUTO_PRESET = ['scream', 'whisper', 'hype', 'dream', 'horror', 'chaos', 'hook', 'outro'];
+
+        // Lines with no markup get random effects; {plain} keeps a line clean.
+        const autoFx = m => {
+            if (autoLevel === 'off' || !AUTO_CFG[autoLevel]) return m;
+            if (m.line.length || m.words.some(x => x.fx.length) || !m.words.length) return m;
+            const C = AUTO_CFG[autoLevel], k = autoN++, chance = p => Math.random() < p;
+            const add = f => { if (f && !m.line.includes(f)) m.line.push(f); };
+            if (chance(C.line * .12)) {
+                let p;
+                do { p = pick(AUTO_PRESET); } while (p === autoLast && AUTO_PRESET.length > 1);
+                autoLast = p;
+                FX_ALIAS[p].forEach(f => {
+                    if (AUTO_HEAVY.includes(f) && (k - autoHeavyAt < C.gap || !chance(C.heavy * 3))) return;
+                    if (AUTO_HEAVY.includes(f)) autoHeavyAt = k;
+                    if (FX_LINE.has(f)) add(f);
+                    else m.line.push(f);
+                });
+                return m;
+            }
+            if (chance(C.line)) add(pick(AUTO_COL));
+            if (chance(C.line * .6)) add(pick(AUTO_STYLE));
+            if (chance(C.line * .35)) add(pick(AUTO_MOTION));
+            if (chance(C.line * .2)) add(pick(['big', 'small']));
+            if (chance(C.inP)) add(pick(AUTO_IN));
+            if (chance(C.outP)) add(pick(AUTO_OUT));
+            if (chance(C.line * .3)) add(pick(AUTO_SOFT));
+            if (C.heavy && k - autoHeavyAt >= C.gap && chance(C.heavy)) {
+                add(pick(AUTO_HEAVY));
+                autoHeavyAt = k;
+            }
+            if (m.words.length > 1 && chance(C.word)) {
+                const n = m.words.length > 5 && chance(.35) ? 2 : 1;
+                for (let i = 0; i < n; i++) {
+                    const w = pick(m.words);
+                    if (!w.fx.length) w.fx.push(pick(AUTO_WORD), ...(chance(.4) ? [pick(AUTO_COL)] : []));
+                }
+            }
+            if (!m.line.length && !m.words.some(x => x.fx.length)) add(pick(AUTO_COL));
+            return m;
+        };
+
         const splitFx = s => s.split(/[\s,]+/).map(x => x.trim().toLowerCase()).filter(Boolean).flatMap(x => FX_ALIAS[x] || [x]);
 
         const markup = raw => {
@@ -235,6 +293,8 @@
                 try {
                     const text = await src();
                     if (!text || !text.trim()) continue;
+                    const dir = text.match(/^\s*(?:#|\/\/)\s*auto\s*[:=]\s*(off|low|mid|high)\b/im);
+                    if (dir && !autoParam.has('auto') && !autoParam.has('noauto')) autoLevel = dir[1].toLowerCase();
                     const r = parse(text);
                     if (r.lines.length) {
                         res = r;
@@ -439,7 +499,7 @@
 
         const spawn = (line, life) => {
             if (!line.text) return;
-            const m = line.m || (line.m = markup(line.text));
+            const m = line.m || (line.m = autoFx(markup(line.text)));
             if (!m.words.length) return;
             const L = new Set(m.line);
             if (L.has('hold')) life *= 1.7;
